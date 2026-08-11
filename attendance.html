@@ -12,6 +12,7 @@
     <aside id="sidebar" class="w-72 bg-white border-r"></aside>
     <main class="flex-1 p-8">
       <h2 class="text-2xl font-bold mb-4">Attendance</h2>
+
       <div class="bg-white p-4 rounded shadow">
         <h3 class="font-semibold mb-2">Mark Attendance</h3>
         <form id="attForm" class="space-y-3">
@@ -26,7 +27,7 @@
       </div>
 
       <div class="mt-6 bg-white p-4 rounded shadow">
-        <h3 class="font-semibold mb-2">Recent Attendance (sample)</h3>
+        <h3 class="font-semibold mb-2">Recent Attendance</h3>
         <div id="recentList" class="text-sm text-gray-700">Loading...</div>
       </div>
     </main>
@@ -34,11 +35,21 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    import { getFirestore, addDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import {
+      getFirestore,
+      addDoc,
+      collection,
+      query,
+      where,
+      orderBy,
+      limit,
+      getDocs,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
+    // --- replace with your Firebase config ---
     const firebaseConfig = {
-
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -46,25 +57,31 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
+    // -----------------------------------------
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // requireAuth & sidebar same approach as dashboard
+    // require auth and render sidebar
     onAuthStateChanged(auth, async (user) => {
-      if (!user) { location.replace('login.html'); return; }
+      if (!user) {
+        location.replace('login.html'); // protected page
+        return;
+      }
       renderSidebar(user);
-      loadRecent(user.uid);
+      await loadRecent(user.uid);
     });
 
+    // Sidebar (simple)
     function renderSidebar(user) {
       const side = document.getElementById('sidebar');
       side.innerHTML = `
         <div class="p-6">
           <h2 class="text-2xl font-bold mb-4">Campus360</h2>
           <div class="mb-4">
-            <div id="user-name" class="text-sm text-gray-700">${user.email}</div>
-            <div id="user-email" class="text-xs text-gray-500">${user.email}</div>
+            <div class="text-sm text-gray-700">${user.email}</div>
+            <div class="text-xs text-gray-500">${user.email}</div>
           </div>
           <nav class="space-y-1">
             ${navLink('Dashboard','dashboard.html')}
@@ -76,8 +93,6 @@
             ${navLink('Profile','profile.html')}
             ${navLink('Settings','settings.html')}
             ${navLink('About','about.html')}
-            ${navLink('Docs','docs.html')}
-            ${navLink('Help','help.html')}
           </nav>
           <div class="mt-6">
             <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
@@ -85,51 +100,93 @@
         </div>
       `;
       document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await auth.signOut();
+        await signOut(auth);
         location.replace('index.html');
       });
     }
     function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
 
-    // attendance submission
+    // Submit attendance
     const attForm = document.getElementById('attForm');
     const attMsg = document.getElementById('attMsg');
+
     attForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       attMsg.textContent = '';
       const courseId = document.getElementById('courseId').value.trim();
       const present = document.querySelector('input[name="present"]:checked').value === 'true';
+
       try {
         const user = auth.currentUser;
         if (!user) throw new Error('Not signed in');
+
+        // save attendance with server timestamp
         await addDoc(collection(db, 'attendance'), {
-          uid: user.uid, courseId, present, date: new Date().toISOString()
+          uid: user.uid,
+          courseId,
+          present,
+          date: serverTimestamp()
         });
+
         attMsg.textContent = 'Attendance recorded.';
         attMsg.className = 'text-green-600';
         attForm.reset();
-        loadRecent(user.uid);
+
+        // immediately reload recent items so the new record appears
+        await loadRecent(user.uid);
       } catch (err) {
-        attMsg.textContent = err.message || 'Failed';
+        attMsg.textContent = err.message || 'Failed to save attendance';
         attMsg.className = 'text-red-600';
       }
     });
 
+    // Load recent attendance for user
     async function loadRecent(uid) {
+      const el = document.getElementById('recentList');
+      el.textContent = 'Loading...';
       try {
-        const q = query(collection(db, 'attendance'), where('uid','==',uid), orderBy('date','desc'), limit(6));
+        // query: filter by uid, order by date desc, show latest 8
+        const q = query(
+          collection(db, 'attendance'),
+          where('uid', '==', uid),
+          orderBy('date', 'desc'),
+          limit(8)
+        );
         const snaps = await getDocs(q);
-        const el = document.getElementById('recentList');
-        if (!el) return;
-        const arr = [];
-        snaps.forEach(s => arr.push(s.data()));
-        if (arr.length === 0) el.textContent = 'No records yet.';
-        else el.innerHTML = arr.map(a => `<div class="py-1 border-b"><strong>${a.courseId}</strong> — ${a.present ? 'Present' : 'Absent'} <span class="text-xs text-gray-500">(${new Date(a.date).toLocaleString()})</span></div>`).join('');
+        const rows = [];
+        snaps.forEach(s => {
+          const d = s.data();
+          // handle serverTimestamp (Firestore Timestamp) or ISO string
+          let dt = '';
+          if (d.date && d.date.toDate) dt = d.date.toDate().toLocaleString();
+          else if (d.date) dt = new Date(d.date).toLocaleString();
+          else dt = '—';
+          rows.push({ courseId: d.courseId, present: d.present, dateStr: dt });
+        });
+
+        if (rows.length === 0) {
+          el.innerHTML = '<div class="text-gray-500">No records yet.</div>';
+        } else {
+          el.innerHTML = rows.map(r => `
+            <div class="py-2 border-b">
+              <div class="flex justify-between items-center">
+                <div><strong>${escapeHtml(r.courseId)}</strong> <span class="text-xs text-gray-500">(${r.dateStr})</span></div>
+                <div class="text-sm ${r.present ? 'text-green-600' : 'text-red-600'}">${r.present ? 'Present' : 'Absent'}</div>
+              </div>
+            </div>
+          `).join('');
+        }
       } catch (err) {
-        const el = document.getElementById('recentList');
-        if (el) el.textContent = 'Could not load records.';
+        // If Firestore asks for index, console will show link; handle gracefully
+        el.innerHTML = `<div class="text-red-600">Could not load records. ${err.message || ''}</div>`;
       }
     }
+
+    // small helper to avoid HTML injection
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"'`=\/]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]; });
+    }
+
   </script>
 </body>
 </html>
