@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Profile — Campus360</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>#sidebar{height:100vh;overflow:auto}</style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
+    <main class="flex-1 p-8">
+      <h2 class="text-2xl font-bold mb-4">Profile</h2>
+      <div class="bg-white p-4 rounded shadow">
+        <div id="profileContent">Loading profile...</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
+      authDomain: "final-project-646be.firebaseapp.com",
+      projectId: "final-project-646be",
+      storageBucket: "final-project-646be.firebasestorage.app",
+      messagingSenderId: "826790861451",
+      appId: "1:826790861451:web:43fd311fc290419ab2928e"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) location.replace('login.html');
+      else {
+        renderSidebar(user);
+        const snap = await getDoc(doc(db,'users',user.uid));
+        const el = document.getElementById('profileContent');
+        if (snap.exists()) {
+          const p = snap.data();
+          el.innerHTML = `<p><strong>Name:</strong> ${p.name || '—'}</p>
+                          <p><strong>Email:</strong> ${user.email}</p>
+                          <p><strong>College:</strong> ${p.college || '—'}</p>`;
+        } else {
+          el.innerHTML = `<p><strong>Email:</strong> ${user.email}</p>
+                          <p class="text-sm text-gray-500">No profile record. You signed up via email/password but profile not found.</p>`;
+        }
+      }
+    });
+
+    function renderSidebar(user) {
+      const side = document.getElementById('sidebar');
+      side.innerHTML = `
+        <div class="p-6">
+          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
+          <div class="mb-4">
+            <div class="text-sm text-gray-700">${user.email}</div>
+            <div class="text-xs text-gray-500">${user.email}</div>
+          </div>
+          <nav class="space-y-1">
+            ${navLink('Dashboard','dashboard.html')}
+            ${navLink('Attendance','attendance.html')}
+            ${navLink('Courses','courses.html')}
+            ${navLink('Library','library.html')}
+            ${navLink('Timetable','timetable.html')}
+            ${navLink('Notifications','notifications.html')}
+            ${navLink('Profile','profile.html')}
+            ${navLink('Settings','settings.html')}
+            ${navLink('About','about.html')}
+          </nav>
+          <div class="mt-6">
+            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await auth.signOut();
+        location.replace('index.html');
+      });
+    }
+    function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
+  </script>
+</body>
+</html>

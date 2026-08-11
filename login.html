@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login — Campus360</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-b from-indigo-50 to-white min-h-screen flex items-center justify-center">
+  <div class="max-w-md w-full bg-white p-8 rounded shadow">
+    <h2 class="text-2xl font-bold mb-4">Welcome Back</h2>
+    <form id="loginForm" class="space-y-3">
+      <input required id="email" type="email" placeholder="Email" class="w-full px-3 py-2 border rounded" />
+      <input required id="password" type="password" placeholder="Password" class="w-full px-3 py-2 border rounded" />
+      <div class="flex justify-between items-center">
+        <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded">Login</button>
+        <a href="signup.html" class="text-sm text-indigo-600">Create account</a>
+      </div>
+      <div id="msg" class="text-sm text-red-500"></div>
+    </form>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
+      authDomain: "final-project-646be.firebaseapp.com",
+      projectId: "final-project-646be",
+      storageBucket: "final-project-646be.firebasestorage.app",
+      messagingSenderId: "826790861451",
+      appId: "1:826790861451:web:43fd311fc290419ab2928e"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // If already logged in redirect
+    onAuthStateChanged(auth, u => { if (u) location.replace('dashboard.html'); });
+
+    const form = document.getElementById('loginForm');
+    const msg = document.getElementById('msg');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.textContent = '';
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        location.replace('dashboard.html');
+      } catch (err) {
+        msg.textContent = err.message || 'Login failed';
+      }
+    });
+  </script>
+</body>
+</html>

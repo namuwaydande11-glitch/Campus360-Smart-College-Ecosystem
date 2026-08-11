@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Attendance — Campus360</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>#sidebar{height:100vh;overflow:auto}</style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
+    <main class="flex-1 p-8">
+      <h2 class="text-2xl font-bold mb-4">Attendance</h2>
+      <div class="bg-white p-4 rounded shadow">
+        <h3 class="font-semibold mb-2">Mark Attendance</h3>
+        <form id="attForm" class="space-y-3">
+          <input id="courseId" placeholder="Course ID" class="w-full px-3 py-2 border rounded" required />
+          <div class="flex items-center space-x-3">
+            <label class="flex items-center"><input type="radio" name="present" value="true" checked /> <span class="ml-2">Present</span></label>
+            <label class="flex items-center"><input type="radio" name="present" value="false" /> <span class="ml-2">Absent</span></label>
+          </div>
+          <button class="bg-indigo-600 text-white px-4 py-2 rounded" type="submit">Mark</button>
+        </form>
+        <div id="attMsg" class="text-sm mt-3"></div>
+      </div>
+
+      <div class="mt-6 bg-white p-4 rounded shadow">
+        <h3 class="font-semibold mb-2">Recent Attendance (sample)</h3>
+        <div id="recentList" class="text-sm text-gray-700">Loading...</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, addDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
+      authDomain: "final-project-646be.firebaseapp.com",
+      projectId: "final-project-646be",
+      storageBucket: "final-project-646be.firebasestorage.app",
+      messagingSenderId: "826790861451",
+      appId: "1:826790861451:web:43fd311fc290419ab2928e"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // requireAuth & sidebar same approach as dashboard
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { location.replace('login.html'); return; }
+      renderSidebar(user);
+      loadRecent(user.uid);
+    });
+
+    function renderSidebar(user) {
+      const side = document.getElementById('sidebar');
+      side.innerHTML = `
+        <div class="p-6">
+          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
+          <div class="mb-4">
+            <div id="user-name" class="text-sm text-gray-700">${user.email}</div>
+            <div id="user-email" class="text-xs text-gray-500">${user.email}</div>
+          </div>
+          <nav class="space-y-1">
+            ${navLink('Dashboard','dashboard.html')}
+            ${navLink('Attendance','attendance.html')}
+            ${navLink('Courses','courses.html')}
+            ${navLink('Library','library.html')}
+            ${navLink('Timetable','timetable.html')}
+            ${navLink('Notifications','notifications.html')}
+            ${navLink('Profile','profile.html')}
+            ${navLink('Settings','settings.html')}
+            ${navLink('About','about.html')}
+            ${navLink('Docs','docs.html')}
+            ${navLink('Help','help.html')}
+          </nav>
+          <div class="mt-6">
+            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
+          </div>
+        </div>
+      `;
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await auth.signOut();
+        location.replace('index.html');
+      });
+    }
+    function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
+
+    // attendance submission
+    const attForm = document.getElementById('attForm');
+    const attMsg = document.getElementById('attMsg');
+    attForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      attMsg.textContent = '';
+      const courseId = document.getElementById('courseId').value.trim();
+      const present = document.querySelector('input[name="present"]:checked').value === 'true';
+      try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('Not signed in');
+        await addDoc(collection(db, 'attendance'), {
+          uid: user.uid, courseId, present, date: new Date().toISOString()
+        });
+        attMsg.textContent = 'Attendance recorded.';
+        attMsg.className = 'text-green-600';
+        attForm.reset();
+        loadRecent(user.uid);
+      } catch (err) {
+        attMsg.textContent = err.message || 'Failed';
+        attMsg.className = 'text-red-600';
+      }
+    });
+
+    async function loadRecent(uid) {
+      try {
+        const q = query(collection(db, 'attendance'), where('uid','==',uid), orderBy('date','desc'), limit(6));
+        const snaps = await getDocs(q);
+        const el = document.getElementById('recentList');
+        if (!el) return;
+        const arr = [];
+        snaps.forEach(s => arr.push(s.data()));
+        if (arr.length === 0) el.textContent = 'No records yet.';
+        else el.innerHTML = arr.map(a => `<div class="py-1 border-b"><strong>${a.courseId}</strong> — ${a.present ? 'Present' : 'Absent'} <span class="text-xs text-gray-500">(${new Date(a.date).toLocaleString()})</span></div>`).join('');
+      } catch (err) {
+        const el = document.getElementById('recentList');
+        if (el) el.textContent = 'Could not load records.';
+      }
+    }
+  </script>
+</body>
+</html>

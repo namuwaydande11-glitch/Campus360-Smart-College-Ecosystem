@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Campus360 — Smart College Ecosystem</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white shadow">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <h1 class="text-2xl font-bold">Campus360</h1>
+      <div id="headerActions" class="space-x-3">
+        <!-- dynamic content populated by Firebase auth -->
+        <a id="signupLink" href="signup.html" class="px-4 py-2 bg-indigo-600 text-white rounded">Sign Up</a>
+        <a id="loginLink" href="login.html" class="px-4 py-2 border border-indigo-600 text-indigo-600 rounded">Login</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <section class="grid md:grid-cols-2 gap-8 items-center">
+      <div>
+        <h2 class="text-4xl font-extrabold mb-4">Campus360 — Smart College Ecosystem</h2>
+        <p class="text-gray-700 mb-6">A secure campus portal for attendance, courses, library, timetable, and more. Login to access student modules.</p>
+        <a id="ctaBtn" href="signup.html" class="px-6 py-3 bg-indigo-600 text-white rounded">Get Started</a>
+      </div>
+      <div class="bg-white rounded shadow p-6">
+        <h3 class="font-semibold mb-3">Quick features</h3>
+        <ul class="list-disc pl-5 text-gray-700 space-y-2">
+          <li>Secure registration & login via Firebase</li>
+          <li>Vertical navigation, module-based pages</li>
+          <li>Attendance tracking & Courses</li>
+          <li>Profile, notifications, settings</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="mt-12 grid md:grid-cols-3 gap-6">
+      <div class="bg-white p-4 rounded shadow">
+        <h4 class="font-semibold">For Students</h4>
+        <p class="text-sm text-gray-600">Access courses, mark attendance, view timetable.</p>
+      </div>
+      <div class="bg-white p-4 rounded shadow">
+        <h4 class="font-semibold">For Faculty</h4>
+        <p class="text-sm text-gray-600">Manage classes and notifications.</p>
+      </div>
+      <div class="bg-white p-4 rounded shadow">
+        <h4 class="font-semibold">About</h4>
+        <p class="text-sm text-gray-600">Learn about Campus360 and the team.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-white border-t mt-12">
+    <div class="max-w-6xl mx-auto px-6 py-6 text-sm text-gray-600">© Campus360 — Built for learning</div>
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    // --- REPLACE these with your Firebase project's config ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
+      authDomain: "final-project-646be.firebaseapp.com",
+      projectId: "final-project-646be",
+      storageBucket: "final-project-646be.firebasestorage.app",
+      messagingSenderId: "826790861451",
+      appId: "1:826790861451:web:43fd311fc290419ab2928e"
+    };
+    // --------------------------------------------------------
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const headerActions = document.getElementById('headerActions');
+    const ctaBtn = document.getElementById('ctaBtn');
+    const signupLink = document.getElementById('signupLink');
+    const loginLink = document.getElementById('loginLink');
+
+    // React to auth state changes and update header UI
+    onAuthStateChanged(auth, async (user) => {
+      headerActions.innerHTML = ''; // clear
+      if (user) {
+        // try to load profile name from Firestore (optional)
+        let displayName = user.email;
+        try {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.name) displayName = data.name;
+          }
+        } catch (e) { /* ignore */ }
+
+        // show Dashboard link + greeting + Logout
+        const dash = document.createElement('a');
+        dash.href = 'dashboard.html';
+        dash.className = 'px-4 py-2 bg-indigo-600 text-white rounded';
+        dash.textContent = 'Dashboard';
+
+        const greet = document.createElement('span');
+        greet.className = 'mx-3 text-gray-700';
+        greet.textContent = displayName;
+
+        const outBtn = document.createElement('button');
+        outBtn.className = 'px-4 py-2 border border-red-500 text-red-600 rounded';
+        outBtn.textContent = 'Logout';
+        outBtn.addEventListener('click', async () => {
+          await signOut(auth);
+          // after logout redirect to home
+          location.replace('index.html');
+        });
+
+        headerActions.appendChild(dash);
+        headerActions.appendChild(greet);
+        headerActions.appendChild(outBtn);
+
+        // CTA -> take to dashboard for logged in users
+        ctaBtn.href = 'dashboard.html';
+        signupLink?.remove();
+        loginLink?.remove();
+      } else {
+        // not signed in: show Sign Up / Login
+        const su = document.createElement('a');
+        su.href = 'signup.html';
+        su.className = 'px-4 py-2 bg-indigo-600 text-white rounded';
+        su.textContent = 'Sign Up';
+        const li = document.createElement('a');
+        li.href = 'login.html';
+        li.className = 'px-4 py-2 border border-indigo-600 text-indigo-600 rounded';
+        li.textContent = 'Login';
+        headerActions.appendChild(su);
+        headerActions.appendChild(li);
+
+        ctaBtn.href = 'signup.html';
+      }
+    });
+  </script>
+</body>
+</html>

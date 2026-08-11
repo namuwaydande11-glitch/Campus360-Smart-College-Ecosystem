@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard — Campus360</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style> /* simple scroll area */ #sidebar { height: 100vh; overflow:auto }</style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
+    <main class="flex-1 p-8">
+      <h2 class="text-2xl font-bold mb-4">Dashboard</h2>
+      <p class="text-gray-700">Welcome to Campus360. Use the navigation to access modules.</p>
+
+      <section class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-semibold">Attendance</h3>
+          <p class="text-sm text-gray-600">Quickly mark or view attendance.</p>
+          <a class="text-indigo-600 text-sm underline" href="attendance.html">Go to Attendance</a>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-semibold">Courses</h3>
+          <p class="text-sm text-gray-600">Your enrolled courses appear here.</p>
+          <a class="text-indigo-600 text-sm underline" href="courses.html">View Courses</a>
+        </div>
+        <div class="p-4 bg-white rounded shadow">
+          <h3 class="font-semibold">Profile</h3>
+          <p class="text-sm text-gray-600">Update your profile and settings.</p>
+          <a class="text-indigo-600 text-sm underline" href="profile.html">Open Profile</a>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
+      authDomain: "final-project-646be.firebaseapp.com",
+      projectId: "final-project-646be",
+      storageBucket: "final-project-646be.firebasestorage.app",
+      messagingSenderId: "826790861451",
+      appId: "1:826790861451:web:43fd311fc290419ab2928e"
+    };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // requireAuth: redirect to login.html if not authenticated
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        location.replace('login.html');
+        return;
+      }
+      // render sidebar when logged in
+      renderSidebar(user);
+    });
+
+    function renderSidebar(user) {
+      const side = document.getElementById('sidebar');
+      side.innerHTML = `
+        <div class="p-6">
+          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
+          <div class="mb-4">
+            <div id="user-name" class="text-sm text-gray-700">Loading...</div>
+            <div id="user-email" class="text-xs text-gray-500">${user.email}</div>
+          </div>
+          <nav class="space-y-1">
+            ${navLink('Dashboard','dashboard.html')}
+            ${navLink('Attendance','attendance.html')}
+            ${navLink('Courses','courses.html')}
+            ${navLink('Library','library.html')}
+            ${navLink('Timetable','timetable.html')}
+            ${navLink('Notifications','notifications.html')}
+            ${navLink('Profile','profile.html')}
+            ${navLink('Settings','settings.html')}
+            ${navLink('About','about.html')}
+            ${navLink('Docs','docs.html')}
+            ${navLink('Help','help.html')}
+          </nav>
+          <div class="mt-6">
+            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
+          </div>
+        </div>
+      `;
+      // load profile name from Firestore if exists
+      getDoc(doc(db, 'users', user.uid)).then(snap => {
+        if (snap.exists()) {
+          const data = snap.data();
+          const nameEl = document.getElementById('user-name');
+          if (nameEl) nameEl.textContent = data.name || user.email;
+        } else {
+          const nameEl = document.getElementById('user-name');
+          if (nameEl) nameEl.textContent = user.email;
+        }
+      }).catch(()=>{});
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await signOut(auth);
+        location.replace('index.html');
+      });
+    }
+
+    function navLink(title, href) {
+      return `<a href="${href}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${title}</a>`;
+    }
+  </script>
+</body>
+</html>
