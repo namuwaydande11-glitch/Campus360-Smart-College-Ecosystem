@@ -5,24 +5,114 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Notifications — Campus360</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>#sidebar{height:100vh;overflow:auto}</style>
+  <style>
+    body { background:#f3f4f6; color:#111827; }
+    #sidebar{height:100vh;overflow:auto}
+    .panel{background:white;border-radius:10px;padding:1rem;box-shadow:0 6px 18px rgba(0,0,0,0.06)}
+    .muted{color:#6b7280}
+    .badge-unread{background:#ef4444;color:white;padding:2px 8px;border-radius:999px;font-size:12px}
+    .notif-card.unread{background: linear-gradient(90deg, rgba(59,130,246,0.04), transparent)}
+    .top-banner{position:sticky;top:0;z-index:40}
+    .action-btn{padding:6px 8px;border-radius:6px;background:#f3f4f6;border:1px solid #e5e7eb}
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50">
+<body class="min-h-screen">
   <div class="flex min-h-screen">
-    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
-    <main class="flex-1 p-8">
-      <h2 class="text-2xl font-bold mb-4">Notifications</h2>
-      <div class="bg-white p-4 rounded shadow">
-        <p class="text-gray-600">Notifications placeholder — you can store announcements in Firestore and render here.</p>
+    <aside id="sidebar" class="w-72 p-6">
+      <h2 class="text-2xl font-bold mb-4">Campus360</h2>
+      <div id="sideUser" class="mb-6">
+        <div id="sideEmail" class="text-sm muted">guest@campus</div>
+      </div>
+      <nav class="space-y-1">
+        <a href="dashboard.html" class="block px-3 py-2 rounded">Dashboard</a>
+        <a href="courses.html" class="block px-3 py-2 rounded">Courses</a>
+        <a href="settings.html" class="block px-3 py-2 rounded">Settings</a>
+      </nav>
+    </aside>
+
+    <main class="flex-1 p-6">
+      <!-- Banner -->
+      <div id="bannerHolder" class="top-banner mb-4"></div>
+
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-2xl font-bold">Notifications <span id="unreadCount" class="ml-2 badge-unread" style="display:none">0</span></h1>
+        <div class="flex items-center gap-2">
+          <button id="btnEnableNotif" class="px-3 py-1 bg-indigo-600 text-white rounded">Enable Desktop Notifications</button>
+          <button id="btnSettingsToggle" class="px-3 py-1 bg-gray-100 rounded">Settings</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="panel md:col-span-2">
+          <div class="flex justify-between items-center mb-3">
+            <div><strong>Recent</strong> <div class="muted text-sm">Real-time & cached</div></div>
+            <div class="flex gap-2">
+              <select id="filterType" class="px-2 py-1 border rounded">
+                <option value="all">All</option>
+                <option value="announcement">Announcement</option>
+                <option value="event">Event</option>
+                <option value="emergency">Emergency</option>
+              </select>
+              <button id="btnRefresh" class="action-btn">Refresh</button>
+            </div>
+          </div>
+
+          <div id="notifList" class="space-y-3">
+            <!-- notifications inserted here -->
+            <div class="muted text-sm">Loading...</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel mb-4">
+            <h3 class="font-semibold mb-2">Settings</h3>
+            <label class="flex items-center justify-between mb-2">
+              <span>Sound</span>
+              <input id="toggleSound" type="checkbox" checked />
+            </label>
+            <label class="flex items-center justify-between mb-2">
+              <span>Vibrate</span>
+              <input id="toggleVibrate" type="checkbox" checked />
+            </label>
+            <label class="flex items-center justify-between mb-2">
+              <span>Do Not Disturb</span>
+              <input id="toggleDnd" type="checkbox" />
+            </label>
+            <div class="mt-3">
+              <button id="btnClearCache" class="px-3 py-1 bg-gray-100 rounded">Clear Cache</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3 class="font-semibold mb-2">Demo / Admin</h3>
+            <input id="demoTitle" class="w-full px-2 py-1 border rounded mb-2" placeholder="Title (demo)"/>
+            <textarea id="demoBody" class="w-full px-2 py-1 border rounded mb-2" rows="3" placeholder="Message (demo)"></textarea>
+            <select id="demoSeverity" class="w-full px-2 py-1 border rounded mb-2">
+              <option value="announcement">Announcement</option>
+              <option value="event">Event</option>
+              <option value="emergency">Emergency</option>
+            </select>
+            <button id="btnSendLocal" class="px-3 py-1 bg-red-600 text-white rounded w-full">Send Local Notification</button>
+            <div class="mt-2 muted text-xs">This creates a local notification (no Firestore write). Use to test behavior.</div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    const firebaseConfig = {
+  <!-- libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
+  <audio id="notifSound" preload="auto">
+    <source src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=" type="audio/wav" />
+  </audio>
+
+  <script>
+    // ======= CONFIG: put your Firebase config here ======
+    const firebaseConfig = {
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -30,41 +120,318 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    onAuthStateChanged(auth, u => { if (!u) location.replace('login.html'); else renderSidebar(u); });
+    // =====================================================
 
-    function renderSidebar(user) {
-      const side = document.getElementById('sidebar');
-      side.innerHTML = `
-        <div class="p-6">
-          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
-          <div class="mb-4">
-            <div class="text-sm text-gray-700">${user.email}</div>
-            <div class="text-xs text-gray-500">${user.email}</div>
-          </div>
-          <nav class="space-y-1">
-            ${navLink('Dashboard','dashboard.html')}
-            ${navLink('Attendance','attendance.html')}
-            ${navLink('Courses','courses.html')}
-            ${navLink('Library','library.html')}
-            ${navLink('Timetable','timetable.html')}
-            ${navLink('Notifications','notifications.html')}
-            ${navLink('Profile','profile.html')}
-            ${navLink('Settings','settings.html')}
-            ${navLink('About','about.html')}
-          </nav>
-          <div class="mt-6">
-            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
-          </div>
-        </div>
-      `;
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await auth.signOut();
-        location.replace('index.html');
-      });
+    // Initialize
+    try { firebase.initializeApp(firebaseConfig); } catch(e) { /* already init */ }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // UI refs
+    const notifList = document.getElementById('notifList');
+    const bannerHolder = document.getElementById('bannerHolder');
+    const btnEnableNotif = document.getElementById('btnEnableNotif');
+    const toggleSound = document.getElementById('toggleSound');
+    const toggleVibrate = document.getElementById('toggleVibrate');
+    const toggleDnd = document.getElementById('toggleDnd');
+    const btnClearCache = document.getElementById('btnClearCache');
+    const btnSendLocal = document.getElementById('btnSendLocal');
+    const demoTitle = document.getElementById('demoTitle');
+    const demoBody = document.getElementById('demoBody');
+    const demoSeverity = document.getElementById('demoSeverity');
+    const unreadCountEl = document.getElementById('unreadCount');
+    const filterType = document.getElementById('filterType');
+    const btnRefresh = document.getElementById('btnRefresh');
+    const sideEmail = document.getElementById('sideEmail');
+
+    const notifSound = document.getElementById('notifSound');
+
+    // localForage
+    localforage.config({ name: 'campus360_notifications', storeName: 'notifications' });
+
+    // state
+    let currentUser = null;
+    let localUid = null;
+    let notifications = []; // merged list
+    let unsubAll = null, unsubUser = null;
+
+    // helpers
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
+    function formatTime(ts){
+      if (!ts) return '';
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleString();
     }
-    function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
+    function playSound(){
+      if (!toggleSound.checked) return;
+      notifSound.currentTime = 0;
+      notifSound.play().catch(()=>{/* autoplay blocked until user interaction */});
+    }
+    function vibrate(){
+      if (!toggleVibrate.checked) return;
+      if (navigator.vibrate) navigator.vibrate(200);
+    }
+    function showBrowserNotif(title, body, tag){
+      if (Notification && Notification.permission === 'granted' && !toggleDnd.checked) {
+        try {
+          const n = new Notification(title, { body, tag, renotify: true });
+          n.onclick = () => window.focus();
+        } catch(e){ console.warn('Notification failed', e); }
+      }
+    }
+
+    // persist cache
+    async function cacheNotifications(arr){
+      try { await localforage.setItem('notifications_cache', arr); } catch(e){ console.warn('cache save failed', e); }
+    }
+    async function loadCachedNotifications(){
+      try {
+        const v = await localforage.getItem('notifications_cache');
+        return v || [];
+      } catch(e){ return []; }
+    }
+
+    // Render
+    function renderList(){
+      const filter = filterType.value;
+      const list = notifications
+        .filter(n => !filter || filter === 'all' ? true : (n.type === filter))
+        .sort((a,b) => (b.createdAt && a.createdAt) ? (b.createdAt.seconds - a.createdAt.seconds) : 0);
+
+      if (!list.length) {
+        notifList.innerHTML = '<div class="muted">No notifications</div>';
+        unreadCountEl.style.display = 'none';
+        return;
+      }
+      // unread count (for current user)
+      const unread = list.filter(n => !isReadByMe(n)).length;
+      if (unread > 0) {
+        unreadCountEl.style.display = 'inline-block';
+        unreadCountEl.textContent = unread;
+      } else unreadCountEl.style.display = 'none';
+
+      notifList.innerHTML = '';
+      for (const n of list) {
+        const card = document.createElement('div');
+        card.className = 'notif-card p-3 border rounded';
+        if (!isReadByMe(n)) card.classList.add('unread');
+        const severityColor = n.severity === 'emergency' ? 'text-red-600' : (n.severity === 'event' ? 'text-indigo-600' : 'text-gray-700');
+        card.innerHTML = `
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center gap-2">
+                <div class="${severityColor} font-semibold">${escapeHtml(n.title || (n.type || 'Notification'))}</div>
+                ${isReadByMe(n) ? '' : '<span class="badge-unread">New</span>'}
+              </div>
+              <div class="muted text-sm mt-1">${escapeHtml(n.body || '')}</div>
+              <div class="muted text-xs mt-2">${formatTime(n.createdAt)}</div>
+            </div>
+            <div class="flex flex-col items-end gap-2">
+              <div>
+                ${n.url ? `<a href="${escapeHtml(n.url)}" target="_blank" class="action-btn">Open</a>` : ''}
+              </div>
+              <div>
+                <button class="action-btn btnMark" data-id="${escapeHtml(n.id)}">${isReadByMe(n) ? 'Mark unread' : 'Mark read'}</button>
+                <button class="action-btn btnDelete ml-2" data-id="${escapeHtml(n.id)}">Archive</button>
+              </div>
+            </div>
+          </div>
+        `;
+        notifList.appendChild(card);
+      }
+      // attach handlers
+      document.querySelectorAll('.btnMark').forEach(b => b.addEventListener('click', async (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        const n = notifications.find(x => x.id === id);
+        if (!n) return;
+        if (isReadByMe(n)) await markUnread(n);
+        else await markRead(n);
+      }));
+      document.querySelectorAll('.btnDelete').forEach(b => b.addEventListener('click', async (e) => {
+        const id = e.currentTarget.getAttribute('data-id');
+        await archiveLocal(id);
+      }));
+    }
+
+    // read status helpers
+    function isReadByMe(n){
+      if (!currentUser) {
+        // guest: check local read map
+        const localReads = JSON.parse(localStorage.getItem('campus_read_map')||'{}');
+        return !!localReads[n.id];
+      }
+      return Array.isArray(n.readBy) && n.readBy.includes(currentUser.uid);
+    }
+    async function markRead(n){
+      if (currentUser) {
+        try {
+          await db.collection('notifications').doc(n.id).update({ readBy: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+        } catch(e){ console.warn('markRead failed', e); }
+      } else {
+        const localReads = JSON.parse(localStorage.getItem('campus_read_map')||'{}');
+        localReads[n.id] = true;
+        localStorage.setItem('campus_read_map', JSON.stringify(localReads));
+      }
+      // update local state
+      n.readBy = n.readBy || [];
+      if (currentUser && !n.readBy.includes(currentUser.uid)) n.readBy.push(currentUser.uid);
+      renderList();
+    }
+    async function markUnread(n){
+      if (currentUser) {
+        try {
+          await db.collection('notifications').doc(n.id).update({ readBy: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
+        } catch(e){ console.warn('markUnread failed', e); }
+      } else {
+        const localReads = JSON.parse(localStorage.getItem('campus_read_map')||'{}');
+        delete localReads[n.id];
+        localStorage.setItem('campus_read_map', JSON.stringify(localReads));
+      }
+      if (n.readBy && currentUser) n.readBy = n.readBy.filter(u => u !== currentUser.uid);
+      renderList();
+    }
+
+    // archive locally (remove from local list and cache) - does not delete from Firestore
+    async function archiveLocal(id){
+      notifications = notifications.filter(n => n.id !== id);
+      await cacheNotifications(notifications);
+      renderList();
+    }
+
+    // Banner (top urgent)
+    function showBanner(alert){
+      bannerHolder.innerHTML = `<div class="panel top-urgent p-3" style="background:#f87171;color:white"><div class="font-semibold">⚠️ ${escapeHtml(alert.title || 'Emergency')}</div><div class="mt-1">${escapeHtml(alert.body || alert.message || '')}</div></div>`;
+      playSound(); vibrate();
+      // also system notification
+      showBrowserNotif(alert.title || 'Emergency', alert.body || alert.message || '');
+    }
+    function clearBanner(){ bannerHolder.innerHTML = ''; }
+
+    // Merge and update notifications array and cache
+    async function updateNotificationsFromSnapshots(globalArr, personalArr){
+      const map = new Map();
+      (globalArr||[]).forEach(n => map.set(n.id, n));
+      (personalArr||[]).forEach(n => map.set(n.id, n));
+      notifications = Array.from(map.values());
+      // ensure createdAt is Firestore Timestamp if present
+      notifications.sort((a,b) => {
+        const ta = a.createdAt && a.createdAt.seconds ? a.createdAt.seconds : (a.createdAt ? new Date(a.createdAt).getTime()/1000 : 0);
+        const tb = b.createdAt && b.createdAt.seconds ? b.createdAt.seconds : (b.createdAt ? new Date(b.createdAt).getTime()/1000 : 0);
+        return tb - ta;
+      });
+      await cacheNotifications(notifications);
+      renderList();
+      // show banner if there is unread emergency
+      const urgent = notifications.find(n => (n.severity === 'emergency' || n.type==='emergency') && !isReadByMe(n));
+      if (urgent) showBanner(urgent);
+      else clearBanner();
+    }
+
+    // Firestore listeners
+    let globalSnaps = []; // array of docs
+    let personalSnaps = [];
+    function startListeners(){
+      // unsubscribe if present
+      if (unsubAll) { try { unsubAll(); } catch(e){} unsubAll = null; }
+      if (unsubUser) { try { unsubUser(); } catch(e){} unsubUser = null; }
+
+      // global: target == 'all'
+      try {
+        unsubAll = db.collection('notifications').where('target','==','all').orderBy('createdAt','desc').onSnapshot(snap => {
+          globalSnaps = [];
+          snap.forEach(d => { globalSnaps.push({ id: d.id, ...d.data() }); });
+          updateNotificationsFromSnapshots(globalSnaps, personalSnaps);
+        }, e => { console.warn('global listener error', e); });
+      } catch (e) { console.warn('global listener failed', e); }
+
+      // personal: only if signed in
+      if (currentUser) {
+        try {
+          unsubUser = db.collection('notifications').where('target','==', currentUser.uid).orderBy('createdAt','desc').onSnapshot(snap => {
+            personalSnaps = [];
+            snap.forEach(d => personalSnaps.push({ id: d.id, ...d.data() }));
+            updateNotificationsFromSnapshots(globalSnaps, personalSnaps);
+          }, e => { console.warn('personal listener error', e); });
+        } catch(e) { console.warn('personal listener failed', e); }
+      } else {
+        personalSnaps = [];
+        updateNotificationsFromSnapshots(globalSnaps, personalSnaps);
+      }
+    }
+
+    // start up: load cached and start listeners
+    (async function init(){
+      const cached = await loadCachedNotifications();
+      if (cached && cached.length) {
+        notifications = cached;
+        renderList();
+      }
+      startListeners();
+      // read stored settings
+      toggleSound.checked = (localStorage.getItem('campus_notif_sound') || 'true') === 'true';
+      toggleVibrate.checked = (localStorage.getItem('campus_notif_vibrate') || 'true') === 'true';
+      toggleDnd.checked = (localStorage.getItem('campus_notif_dnd') || 'false') === 'true';
+    })();
+
+    // auth state
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      localUid = user ? user.uid : null;
+      sideEmail.textContent = user ? (user.email || user.uid) : 'guest@campus';
+      startListeners();
+    });
+
+    // settings toggles
+    toggleSound.addEventListener('change', () => localStorage.setItem('campus_notif_sound', toggleSound.checked));
+    toggleVibrate.addEventListener('change', () => localStorage.setItem('campus_notif_vibrate', toggleVibrate.checked));
+    toggleDnd.addEventListener('change', () => localStorage.setItem('campus_notif_dnd', toggleDnd.checked));
+
+    btnClearCache.addEventListener('click', async () => {
+      await localforage.clear();
+      notifications = [];
+      renderList();
+      alert('Local cache cleared.');
+    });
+
+    // desktop notifications permission
+    btnEnableNotif.addEventListener('click', async () => {
+      if (!('Notification' in window)) return alert('Notifications not supported in this browser.');
+      const p = await Notification.requestPermission();
+      if (p === 'granted') alert('Desktop notifications enabled.');
+      else alert('Notifications permission: ' + p);
+    });
+
+    // refresh
+    btnRefresh.addEventListener('click', () => startListeners());
+
+    // demo local send
+    btnSendLocal.addEventListener('click', () => {
+      const title = demoTitle.value || 'Demo Alert';
+      const body = demoBody.value || 'This is a demo notification.';
+      const sev = demoSeverity.value || 'announcement';
+      const demo = { id: 'local_' + Date.now(), title, body, severity: sev, type: sev, createdAt: new Date() };
+      // insert at top locally
+      notifications.unshift(demo);
+      cacheNotifications(notifications);
+      renderList();
+      // banner if emergency
+      if (sev === 'emergency') showBanner(demo);
+      playSound(); vibrate(); showBrowserNotif(title, body, demo.id);
+    });
+
+    // helpers: mark read/unread and archive use Firestore where possible (docs must exist)
+    // Additional: expose debug methods
+    window._notifications = { notifications, renderList };
+
+    // utility: initially set filter change to re-render
+    filterType.addEventListener('change', renderList);
+
+    // mark unread count initially hidden if none
+    unreadCountEl.style.display = 'none';
+
+    // final note: Firestore security rules must allow current user to read notifications collection or 'all' docs
+    // server-side: admins should write notifications into collection 'notifications' with fields:
+    // { title, body, target: 'all' | userUid, severity: 'announcement'|'event'|'emergency', createdAt: firebase.firestore.FieldValue.serverTimestamp(), readBy: [] }
   </script>
 </body>
 </html>
