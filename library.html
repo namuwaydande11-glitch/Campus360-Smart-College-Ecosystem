@@ -3,26 +3,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Library — Campus360</title>
+  <title>Locker Pickup — Campus360 (Demo)</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>#sidebar{height:100vh;overflow:auto}</style>
+  <style>
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    #app{max-width:1100px;margin:20px auto}
+    .column{display:inline-block;vertical-align:top;width:48%}
+    .card{background:#fff;padding:16px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,0.06);margin-bottom:16px}
+    .qr-img{width:160px;height:160px;border:1px solid #eee;display:block;margin-top:8px}
+    pre{white-space:pre-wrap}
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50">
-  <div class="flex min-h-screen">
-    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
-    <main class="flex-1 p-8">
-      <h2 class="text-2xl font-bold mb-4">Library</h2>
-      <div class="bg-white p-4 rounded shadow">
-        <p class="text-gray-600">Library module — placeholder for documents/resources. You can integrate Firebase Storage to upload & serve PDFs.</p>
+<body class="bg-gray-100">
+  <div id="app">
+    <h1 class="text-2xl font-bold mb-4">Campus360 — Smart Locker Pickup (Single-file Demo)</h1>
+
+    <div class="card">
+      <strong>Demo notice:</strong>
+      <div class="text-sm text-gray-700 mt-2">
+        This demo uses Firebase (client-side) to simulate lockers, reservations (PIN+QR) and kiosk unlock.
+        For production: move verification to backend, hash/store PINs securely, authenticate devices, and secure Firestore rules.
       </div>
-    </main>
+    </div>
+
+    <div class="column pr-4">
+      <div class="card">
+        <h2 class="text-lg font-semibold mb-2">Student — Reserve a Book</h2>
+        <div class="text-sm text-gray-600 mb-3">Sign in with Google, reserve a book, get PIN & QR.</div>
+
+        <div id="studentArea">
+          <div id="signedOutStudent">
+            <button id="studentSignInBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Sign in with Google</button>
+            <div class="text-xs text-gray-500 mt-2">(Use different tab/device as kiosk)</div>
+          </div>
+
+          <div id="signedInStudent" style="display:none">
+            <div class="mb-2">Signed in as: <span id="stuEmail" class="font-medium"></span></div>
+            <label class="block text-sm text-gray-700">Book ID or Title</label>
+            <input id="bookId" class="w-full px-3 py-2 border rounded mt-1" placeholder="e.g., BOOK-123 or 'Algorithms'">
+            <div class="mt-3">
+              <button id="reserveBtn" class="px-4 py-2 bg-green-600 text-white rounded">Reserve & Create Locker PIN</button>
+            </div>
+
+            <div id="reservationResult" class="mt-4 text-sm"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="font-semibold">Recent reservations (yours)</h3>
+        <div id="stuRecent" class="text-sm mt-2 text-gray-700">—</div>
+      </div>
+    </div>
+
+    <div class="column pl-4">
+      <div class="card">
+        <h2 class="text-lg font-semibold mb-2">Kiosk — Open Locker (simulate)</h2>
+        <div class="text-sm text-gray-600 mb-3">Use PIN or paste QR payload (base64) and press Verify & Unlock.</div>
+
+        <label class="block text-sm text-gray-700">Locker ID (optional)</label>
+        <input id="kLockerId" class="w-full px-3 py-2 border rounded mt-1" placeholder="e.g., L1">
+
+        <label class="block text-sm text-gray-700 mt-2">Enter PIN</label>
+        <input id="kPin" class="w-full px-3 py-2 border rounded mt-1" placeholder="6-digit PIN">
+
+        <div class="mt-2">
+          <label class="block text-sm text-gray-700">Or paste QR payload (base64)</label>
+          <textarea id="kQr" class="w-full px-3 py-2 border rounded mt-1" rows="3" placeholder="Paste QR payload here (from student view)"></textarea>
+        </div>
+
+        <div class="flex gap-2 mt-3">
+          <button id="kVerifyBtn" class="px-4 py-2 bg-indigo-600 text-white rounded">Verify & Unlock</button>
+          <button id="kListBtn" class="px-4 py-2 bg-gray-200 rounded">List active reservations</button>
+        </div>
+
+        <div id="kResult" class="mt-3 text-sm"></div>
+      </div>
+
+      <div class="card">
+        <h3 class="font-semibold">Admin / Data</h3>
+        <div class="text-sm mt-2 text-gray-700 flex gap-2">
+          <button id="createSampleLockers" class="px-3 py-1 bg-yellow-500 text-white rounded">Create sample lockers (5)</button>
+          <button id="clearDemo" class="px-3 py-1 bg-red-500 text-white rounded">Clear demo reservations</button>
+        </div>
+        <div id="adminLog" class="mt-3 text-xs text-gray-700"><em>Actions log</em></div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <strong>How QR works:</strong>
+      <div class="mt-2 text-sm text-gray-700">Reservation produces a QR payload (base64 JSON containing reservationId). Kiosk decodes and validates the stored hashed PIN by combining entered PIN + reservationId (demo approach).</div>
+    </div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    const firebaseConfig = {
+  <!-- Firebase compat -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
+  <script>
+    // ====== CONFIG: replace with your Firebase config if different ======
+    const firebaseConfig = {
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -30,41 +111,257 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    onAuthStateChanged(auth, u => { if (!u) location.replace('login.html'); else renderSidebar(u); });
+    // -------------------------------------------------------------------
 
-    function renderSidebar(user) {
-      const side = document.getElementById('sidebar');
-      side.innerHTML = `
-        <div class="p-6">
-          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
-          <div class="mb-4">
-            <div class="text-sm text-gray-700">${user.email}</div>
-            <div class="text-xs text-gray-500">${user.email}</div>
-          </div>
-          <nav class="space-y-1">
-            ${navLink('Dashboard','dashboard.html')}
-            ${navLink('Attendance','attendance.html')}
-            ${navLink('Courses','courses.html')}
-            ${navLink('Library','library.html')}
-            ${navLink('Timetable','timetable.html')}
-            ${navLink('Notifications','notifications.html')}
-            ${navLink('Profile','profile.html')}
-            ${navLink('Settings','settings.html')}
-            ${navLink('About','about.html')}
-          </nav>
-          <div class="mt-6">
-            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
-          </div>
-        </div>
-      `;
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
-        await auth.signOut();
-        location.replace('index.html');
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Utilities
+    async function sha256hex(message) {
+      const enc = new TextEncoder();
+      const data = enc.encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+    function generatePin(){ return Math.floor(100000 + Math.random()*900000).toString(); }
+    function makeQrPayload(obj){ return btoa(JSON.stringify(obj)); }
+    function parseQrPayload(s){ try { return JSON.parse(atob(s)); } catch(e){ return null; } }
+
+    // UI refs
+    const studentSignInBtn = document.getElementById('studentSignInBtn');
+    const signedOutStudent = document.getElementById('signedOutStudent');
+    const signedInStudent = document.getElementById('signedInStudent');
+    const stuEmail = document.getElementById('stuEmail');
+    const reserveBtn = document.getElementById('reserveBtn');
+    const reservationResult = document.getElementById('reservationResult');
+    const stuRecent = document.getElementById('stuRecent');
+    const bookIdInput = document.getElementById('bookId');
+
+    const kLockerId = document.getElementById('kLockerId');
+    const kPin = document.getElementById('kPin');
+    const kQr = document.getElementById('kQr');
+    const kVerifyBtn = document.getElementById('kVerifyBtn');
+    const kListBtn = document.getElementById('kListBtn');
+    const kResult = document.getElementById('kResult');
+
+    const createSampleLockersBtn = document.getElementById('createSampleLockers');
+    const clearDemoBtn = document.getElementById('clearDemo');
+    const adminLog = document.getElementById('adminLog');
+    function logAdmin(msg){ adminLog.innerHTML = `<div>${new Date().toLocaleTimeString()} — ${msg}</div>` + adminLog.innerHTML; }
+
+    // Auth
+    studentSignInBtn.addEventListener('click', async () => {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try { await auth.signInWithPopup(provider); } catch(e){ alert('Sign-in failed: '+e.message); }
+    });
+
+    auth.onAuthStateChanged(async user => {
+      if (user) {
+        signedOutStudent.style.display = 'none';
+        signedInStudent.style.display = 'block';
+        stuEmail.textContent = user.email;
+        await refreshStudentRecent();
+      } else {
+        signedOutStudent.style.display = 'block';
+        signedInStudent.style.display = 'none';
+      }
+    });
+
+    // Admin: create sample lockers
+    createSampleLockersBtn.addEventListener('click', async () => {
+      const ref = db.collection('lockers');
+      const snap = await ref.limit(1).get();
+      if (!snap.empty) { logAdmin('Lockers already exist (demo).'); return; }
+      for (let i=1;i<=5;i++){
+        await ref.doc('L' + i).set({
+          id: 'L' + i,
+          label: 'Locker ' + i,
+          compartments: Array.from({length:4}, (_,j)=>({
+            id: 'C' + (j+1),
+            status: 'available',
+            currentReservation: null
+          })),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      logAdmin('Created 5 sample lockers (4 compartments each).');
+    });
+
+    // Admin: clear reservations
+    clearDemoBtn.addEventListener('click', async () => {
+      const snaps = await db.collection('reservations').get();
+      const batch = db.batch();
+      snaps.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      logAdmin('Cleared reservations (demo).');
+    });
+
+    // Find available compartment (simple scan)
+    async function findAvailableCompartment(){
+      const lockers = await db.collection('lockers').get();
+      for (const doc of lockers.docs){
+        const data = doc.data();
+        for (const comp of data.compartments){
+          if (comp.status === 'available') return { lockerId: doc.id, compId: comp.id, lockerRef: doc.ref };
+        }
+      }
+      return null;
+    }
+
+    // Update compartment status using transaction
+    async function setCompStatus(lockerId, compId, status, reservationId=null){
+      const ref = db.collection('lockers').doc(lockerId);
+      await db.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error('Locker not found');
+        const data = snap.data();
+        const comps = data.compartments.map(c => c.id === compId ? { ...c, status, currentReservation: reservationId } : c);
+        tx.update(ref, { compartments: comps });
       });
     }
-    function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
+
+    // Reserve action
+    reserveBtn.addEventListener('click', async () => {
+      const user = auth.currentUser;
+      if (!user) { alert('Please sign in'); return; }
+      const bookId = (bookIdInput.value || '').trim() || ('BOOK-' + Math.floor(Math.random()*900+100));
+      reservationResult.innerHTML = 'Reserving...';
+      try {
+        const comp = await findAvailableCompartment();
+        if (!comp) { reservationResult.innerHTML = '<div class="text-red-600">No free compartments available.</div>'; return; }
+
+        // create reservation doc id first
+        const newRef = db.collection('reservations').doc();
+        const pin = generatePin();
+        const payloadForHash = pin + '::' + newRef.id;
+        const pinHash = await sha256hex(payloadForHash);
+        const expiresAt = new Date(Date.now() + 60*60*1000); // 1 hour
+
+        await newRef.set({
+          uid: user.uid,
+          email: user.email,
+          bookId,
+          lockerId: comp.lockerId,
+          compId: comp.compId,
+          pinHash,
+          expiresAt: firebase.firestore.Timestamp.fromDate(expiresAt),
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          status: 'ready'
+        });
+
+        await setCompStatus(comp.lockerId, comp.compId, 'reserved', newRef.id);
+
+        const qrPayload = makeQrPayload({ reservationId: newRef.id, lockerId: comp.lockerId, compId: comp.compId });
+
+        reservationResult.innerHTML = `
+          <div class="text-sm">
+            <div><strong>Locker:</strong> ${comp.lockerId} / ${comp.compId}</div>
+            <div><strong>PIN (one-time):</strong> <span class="font-mono text-lg">${pin}</span></div>
+            <div class="mt-2"><strong>QR payload (paste to kiosk):</strong></div>
+            <textarea id="qrText" class="w-full mt-1 p-2 border rounded" rows="3">${qrPayload}</textarea>
+            <div class="mt-2"><img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrPayload)}" alt="QR"></div>
+            <div class="text-xs text-gray-500 mt-2">PIN is shown here for demo only.</div>
+          </div>
+        `;
+
+        await refreshStudentRecent();
+        logAdmin(`Reservation ${newRef.id} created ${comp.lockerId}/${comp.compId}`);
+      } catch (e) {
+        console.error(e);
+        reservationResult.innerHTML = '<div class="text-red-600">Reservation failed: ' + e.message + '</div>';
+      }
+    });
+
+    // Refresh student's recent reservations WITHOUT orderBy to avoid composite index requirement
+    async function refreshStudentRecent(){
+      const user = auth.currentUser;
+      if (!user) { stuRecent.innerHTML = 'Please sign in'; return; }
+      try {
+        const snaps = await db.collection('reservations').where('uid','==', user.uid).get();
+        if (snaps.empty) { stuRecent.innerHTML = '<div class="text-gray-500">No reservations</div>'; return; }
+        const rows = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+        rows.sort((a,b) => {
+          const ta = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+          const tb = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+          return tb - ta;
+        });
+        const top = rows.slice(0,6);
+        stuRecent.innerHTML = top.map(r => `<div class="py-1 border-b"><strong>${r.bookId}</strong> — ${r.lockerId}/${r.compId} — ${r.status} <div class="text-xs text-gray-500">${r.expiresAt? (r.expiresAt.toDate? r.expiresAt.toDate().toLocaleString(): r.expiresAt) : ''}</div></div>`).join('');
+      } catch (e) {
+        console.error('refreshStudentRecent error', e);
+        stuRecent.innerHTML = '<div class="text-red-600">Could not load recent: ' + (e.message || e) + '</div>';
+      }
+    }
+
+    // Kiosk: verify PIN or QR and simulate unlock
+    kVerifyBtn.addEventListener('click', async () => {
+      kResult.textContent = 'Verifying...';
+      try {
+        let reservationId = null;
+        const qrPayload = (kQr.value || '').trim();
+        if (qrPayload) {
+          const parsed = parseQrPayload(qrPayload);
+          if (!parsed || !parsed.reservationId) { kResult.innerHTML = '<span class="text-red-600">Invalid QR payload</span>'; return; }
+          reservationId = parsed.reservationId;
+        } else {
+          const locker = (kLockerId.value || '').trim();
+          const pin = (kPin.value || '').trim();
+          if (!locker || !pin) { kResult.innerHTML = '<span class="text-red-600">Provide locker+PIN or paste QR</span>'; return; }
+          const snaps = await db.collection('reservations').where('lockerId','==', locker).where('status','==','ready').get();
+          if (snaps.empty) { kResult.innerHTML = '<span class="text-red-600">No active reservation for that locker</span>'; return; }
+          const candidates = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+          candidates.sort((a,b) => (b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0) - (a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0));
+          let matched = null;
+          for (const c of candidates){
+            const enteredHash = await sha256hex(pin + '::' + c.id);
+            if (enteredHash === c.pinHash) { matched = c; reservationId = c.id; break; }
+          }
+          if (!matched) { kResult.innerHTML = '<span class="text-red-600">PIN did not match</span>'; return; }
+        }
+
+        const resSnap = await db.collection('reservations').doc(reservationId).get();
+        if (!resSnap.exists) { kResult.innerHTML = '<span class="text-red-600">Reservation not found</span>'; return; }
+        const res = resSnap.data();
+
+        // If a PIN was entered, verify it against stored hash (also done above if needed)
+        const pinInput = (kPin.value || '').trim();
+        if (pinInput) {
+          const enteredHash = await sha256hex(pinInput + '::' + reservationId);
+          if (enteredHash !== res.pinHash) { kResult.innerHTML = '<span class="text-red-600">PIN mismatch</span>'; return; }
+        }
+
+        // expiry check
+        const now = Date.now();
+        if (res.expiresAt && res.expiresAt.toDate) {
+          if (res.expiresAt.toDate().getTime() < now) { kResult.innerHTML = '<span class="text-red-600">Reservation expired</span>'; return; }
+        }
+
+        // mark picked and free compartment
+        await db.collection('reservations').doc(reservationId).update({ status: 'picked', pickedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await setCompStatus(res.lockerId, res.compId, 'available', null);
+        await db.collection('audit').add({ reservationId, lockerId: res.lockerId, compId: res.compId, uid: res.uid, action: 'unlock', timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+
+        kResult.innerHTML = `<div class="text-green-600 font-semibold">UNLOCKED — ${res.lockerId}/${res.compId} — reservation ${reservationId}</div>`;
+        logAdmin(`Unlocked ${res.lockerId}/${res.compId} for reservation ${reservationId}`);
+      } catch (e) {
+        console.error(e);
+        kResult.innerHTML = `<span class="text-red-600">Verify failed: ${e.message}</span>`;
+      }
+    });
+
+    // List active reservations
+    kListBtn.addEventListener('click', async () => {
+      const snaps = await db.collection('reservations').where('status','==','ready').get();
+      if (snaps.empty) { kResult.innerHTML = '<div class="text-gray-600">No active reservations</div>'; return; }
+      const rows = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
+      kResult.innerHTML = rows.map(r => `<div class="py-1 border-b">${r.id} — ${r.lockerId}/${r.compId} — ${r.bookId} — ${r.email} — expires: ${r.expiresAt && r.expiresAt.toDate ? r.expiresAt.toDate().toLocaleString() : ''}</div>`).join('');
+    });
+
+    // Initial try to refresh if already signed in
+    (async ()=> { if (auth.currentUser) await refreshStudentRecent(); })();
+
   </script>
 </body>
 </html>
