@@ -12,12 +12,29 @@
     <aside id="sidebar" class="w-72 bg-white border-r"></aside>
     <main class="flex-1 p-8">
       <h2 class="text-2xl font-bold mb-4">Courses</h2>
+
+      <!-- AI Assistant / Recommendation Panel -->
+      <div id="aiAssistant" class="mb-6 p-4 bg-white rounded shadow">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">🤖 AI Course Assistant</h3>
+            <p id="aiGreeting" class="text-sm text-gray-600 mt-1">Loading recommendations...</p>
+          </div>
+          <div>
+            <button id="refreshRecs" class="px-3 py-1 bg-indigo-600 text-white rounded">Refresh</button>
+          </div>
+        </div>
+
+        <div id="recList" class="mt-4 grid gap-3"></div>
+      </div>
+
       <div class="mb-4">
         <form id="addCourse" class="flex gap-2">
           <input id="courseTitle" placeholder="Course title" class="flex-1 px-3 py-2 border rounded" />
           <button class="bg-indigo-600 text-white px-4 py-2 rounded" type="submit">Add</button>
         </form>
       </div>
+
       <div id="coursesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </main>
   </div>
@@ -25,10 +42,12 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    import { getFirestore, addDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import {
+      getFirestore, addDoc, collection, query, where, getDocs, doc, getDoc, serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
+    // ====== CONFIG ======
     const firebaseConfig = {
-
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -36,15 +55,27 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
+    // --------------------
+
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
+    // --- UI refs ---
+    const aiGreeting = document.getElementById('aiGreeting');
+    const recList = document.getElementById('recList');
+    const refreshRecs = document.getElementById('refreshRecs');
+    const coursesContainer = document.getElementById('coursesContainer');
+    const addForm = document.getElementById('addCourse');
+    const courseTitleInput = document.getElementById('courseTitle');
+
+    // --- Sidebar & auth ---
     onAuthStateChanged(auth, user => {
       if (!user) location.replace('login.html');
       else {
         renderSidebar(user);
         loadCourses(user.uid);
+        loadAndShowRecommendations(user.uid);
       }
     });
 
@@ -80,37 +111,308 @@
     }
     function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
 
+    // --- Load courses (owned by user) ---
     async function loadCourses(uid) {
-      const container = document.getElementById('coursesContainer');
-      container.innerHTML = 'Loading...';
+      coursesContainer.innerHTML = 'Loading...';
       try {
         const q = query(collection(db, 'courses'), where('ownerUid','==', uid));
         const snaps = await getDocs(q);
         const arr = [];
         snaps.forEach(s => arr.push({ id: s.id, ...s.data() }));
-        if (arr.length === 0) container.innerHTML = '<div class="text-gray-500">No courses yet.</div>';
-        else container.innerHTML = arr.map(c => `<div class="p-3 border rounded"><h3 class="font-semibold">${c.title}</h3><p class="text-sm">${c.description || ''}</p></div>`).join('');
+        if (arr.length === 0) coursesContainer.innerHTML = '<div class="text-gray-500">No courses yet.</div>';
+        else coursesContainer.innerHTML = arr.map(c => `<div class="p-3 border rounded"><h3 class="font-semibold">${escapeHtml(c.title)}</h3><p class="text-sm">${escapeHtml(c.description || '')}</p></div>`).join('');
       } catch (err) {
-        container.innerHTML = '<div class="text-red-600">Could not load courses.</div>';
+        console.error(err);
+        coursesContainer.innerHTML = '<div class="text-red-600">Could not load courses.</div>';
       }
     }
 
     // add course
-    const addForm = document.getElementById('addCourse');
     addForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const title = document.getElementById('courseTitle').value.trim();
+      const title = courseTitleInput.value.trim();
       if (!title) return;
       const user = auth.currentUser;
       if (!user) return location.replace('login.html');
       try {
-        await addDoc(collection(db,'courses'), { ownerUid: user.uid, title, description: '', createdAt: new Date().toISOString() });
-        document.getElementById('courseTitle').value = '';
+        await addDoc(collection(db,'courses'), { ownerUid: user.uid, title, description: '', createdAt: new Date().toISOString(), // optional fields for recommendation
+          // convention: tags: ['Data Science','AI'], credits:3, level:'intermediate', schedule: {day:'Tue', start:'10:00', end:'11:00'}
+        });
+        courseTitleInput.value = '';
         loadCourses(user.uid);
       } catch (err) {
         alert('Could not add');
       }
     });
+
+    // -------------------------
+    // AI Recommendations (client-side rule-based prototype)
+    // -------------------------
+
+    // Helper: safe escape html
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
+
+    // Load student profile (interests, career goals, credits) - fallback safe defaults
+    async function loadStudentProfile(uid){
+      try {
+        const udoc = await getDoc(doc(db, 'users', uid));
+        if (!udoc.exists()) return { interests: [], careerGoals: [], credits: { major:0, minor:0 } };
+        const data = udoc.data();
+        return {
+          interests: data.interests || [],
+          careerGoals: data.careerGoals || [],
+          credits: data.credits || { major:0, minor:0 }
+        };
+      } catch (e) {
+        console.error('loadStudentProfile', e);
+        return { interests: [], careerGoals: [], credits: { major:0, minor:0 } };
+      }
+    }
+
+    // Load student's grades to infer strength (simple)
+    async function loadStudentGrades(uid){
+      try {
+        const q = query(collection(db,'grades'), where('uid','==', uid));
+        const snaps = await getDocs(q);
+        const grades = {};
+        snaps.forEach(s => {
+          const d = s.data();
+          grades[d.courseId] = d.grade; // numeric expected or letter mapped elsewhere
+        });
+        return grades;
+      } catch (e) {
+        console.error('loadStudentGrades', e);
+        return {};
+      }
+    }
+
+    // Load job demand scores (optional collection 'jobDemand' with tag->score)
+    async function loadJobDemandMap(){
+      try {
+        const snaps = await getDocs(collection(db,'jobDemand'));
+        const map = {};
+        snaps.forEach(s => {
+          const d = s.data();
+          if (d.tag) map[d.tag] = d.score || 0;
+        });
+        return map;
+      } catch (e) {
+        // if no collection, fallback empty
+        return {};
+      }
+    }
+
+    // Load all available elective/skill courses to recommend from 'courses' collection
+    async function loadAvailableCourses(){
+      try {
+        const snaps = await getDocs(collection(db,'courses'));
+        const arr = [];
+        snaps.forEach(s => arr.push({ id: s.id, ...s.data() }));
+        return arr;
+      } catch (e) {
+        console.error('loadAvailableCourses', e);
+        return [];
+      }
+    }
+
+    // Scoring function (simple rule-based)
+    function scoreCourseForStudent(course, profile, grades, jobDemand){
+      // course fields expected: tags: ['Data Science','AI'], credits: number, level: 'beginner'|'intermediate', type: 'major'|'minor'|'skill', schedule: {day,start,end}
+      let score = 0;
+      // interest match (40%)
+      const tags = course.tags || [];
+      const interestMatches = tags.filter(t => profile.interests.includes(t)).length;
+      const interestScore = Math.min(1, interestMatches / Math.max(1, tags.length)) * 40;
+      score += interestScore;
+
+      // grades boost: if student did well in related courses (30%)
+      let gradeBoost = 0;
+      for (const t of tags){
+        // if there's a grade for a course with same tag, approximate boost
+        for (const [cid, g] of Object.entries(grades)){
+          // simple heuristic: if courseId contains tag or we have mapping in course metadata this would be better
+          if (cid.toLowerCase().includes(t.toLowerCase()) && Number(g) >= 7){ // assuming grade out of 10
+            gradeBoost += 10;
+          }
+        }
+      }
+      gradeBoost = Math.min(30, gradeBoost); // cap
+      score += gradeBoost;
+
+      // NEP credit benefit (20%): prefer courses that help reach minor/major targets
+      const type = course.type || 'skill'; // major/minor/skill
+      const credits = course.credits || 0;
+      let nepScore = 0;
+      if (type === 'major' && profile.credits && profile.credits.major !== undefined){
+        const remaining = Math.max(0, (profile.credits.majorTarget || 20) - (profile.credits.major||0));
+        if (remaining > 0) nepScore = Math.min(20, (credits / Math.max(1, remaining)) * 20);
+      } else if (type === 'minor' && profile.credits && profile.credits.minor !== undefined){
+        const remaining = Math.max(0, (profile.credits.minorTarget || 12) - (profile.credits.minor||0));
+        if (remaining > 0) nepScore = Math.min(20, (credits / Math.max(1, remaining)) * 20);
+      } else {
+        nepScore = (type === 'skill') ? 5 : 0;
+      }
+      score += nepScore;
+
+      // Job demand (10%)
+      let demandScore = 0;
+      for (const t of tags){
+        demandScore = Math.max(demandScore, jobDemand[t] || 0);
+      }
+      score += Math.min(10, demandScore * 10); // if jobDemand score in 0..1
+
+      return Math.round(score); // 0..100 approx
+    }
+
+    // Check timetable clash (very basic) - expects course.schedule.day and start/end as "HH:MM"
+    async function hasTimetableClash(uid, course){
+      try {
+        if (!course.schedule) return false;
+        // assuming timetable collection: documents with uid and events array OR collection 'timetable' with docs per event
+        // we'll try collection 'timetable' with documents { uid, day, start, end, courseId }
+        const q = query(collection(db, 'timetable'), where('uid','==', uid));
+        const snaps = await getDocs(q);
+        for (const s of snaps.docs){
+          const e = s.data();
+          if (!e.day || !e.start || !e.end) continue;
+          if (e.day !== course.schedule.day) continue;
+          // check time overlap
+          if (timeOverlap(e.start, e.end, course.schedule.start, course.schedule.end)) return true;
+        }
+        return false;
+      } catch (e) {
+        console.error('timetable check', e);
+        return false; // fail-safe: assume no clash
+      }
+    }
+
+    function timeOverlap(aStart, aEnd, bStart, bEnd){
+      const toM = (hhmm) => {
+        const [h,m] = hhmm.split(':').map(Number);
+        return h*60 + m;
+      };
+      const A1 = toM(aStart), A2 = toM(aEnd), B1 = toM(bStart), B2 = toM(bEnd);
+      return Math.max(A1,B1) < Math.min(A2,B2);
+    }
+
+    // Build and show recommendations
+    async function loadAndShowRecommendations(uid){
+      aiGreeting.textContent = 'Computing recommendations...';
+      recList.innerHTML = '';
+      const [profile, grades, jobDemand, courses] = await Promise.all([
+        loadStudentProfile(uid),
+        loadStudentGrades(uid),
+        loadJobDemandMap(),
+        loadAvailableCourses()
+      ]);
+
+      aiGreeting.textContent = `Hi ${auth.currentUser.email.split('@')[0]} — here are courses matched to your interests and goals.`;
+
+      // score each course
+      const scored = courses.map(c => ({ course: c, score: scoreCourseForStudent(c, profile, grades, jobDemand) }));
+      // sort desc
+      scored.sort((a,b) => b.score - a.score);
+
+      // take top 6 recommendations (or fewer)
+      const top = scored.slice(0,6);
+      if (top.length === 0){
+        recList.innerHTML = '<div class="text-gray-500">No recommendations available. Add tags or course metadata first.</div>';
+        return;
+      }
+
+      // render cards
+      recList.innerHTML = top.map(s => {
+        const c = s.course;
+        const tags = (c.tags || []).map(t => `<span class="text-xs bg-gray-100 px-2 py-1 rounded mr-1">${escapeHtml(t)}</span>`).join('');
+        return `
+          <div class="p-3 border rounded flex items-start justify-between">
+            <div style="max-width:78%">
+              <div class="flex items-center gap-2">
+                <strong class="text-sm">${escapeHtml(c.title || ('Course ' + c.id))}</strong>
+                <span class="text-xs text-gray-500">| ${escapeHtml(c.type || 'skill')}</span>
+              </div>
+              <div class="text-xs text-gray-600 mt-1">${escapeHtml(c.description || '')}</div>
+              <div class="mt-2">${tags}</div>
+              <div class="mt-2 text-xs text-gray-600">Why: ${escapeHtml(c.recommendationHint || ('Matches your interest in ' + ((c.tags||[])[0] || 'this area')))}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-indigo-600 font-semibold">${s.score}%</div>
+              <div class="mt-2">
+                <button data-course-id="${c.id}" class="enrollBtn px-3 py-1 bg-green-600 text-white rounded text-sm">Enroll</button>
+                <button data-course-id="${c.id}" class="viewBtn ml-2 px-3 py-1 bg-gray-100 rounded text-sm">View</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // attach handlers
+      document.querySelectorAll('.enrollBtn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const cid = e.currentTarget.getAttribute('data-course-id');
+          await handleEnroll(cid);
+        });
+      });
+      document.querySelectorAll('.viewBtn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const cid = e.currentTarget.getAttribute('data-course-id');
+          window.location.href = `course-details.html?id=${encodeURIComponent(cid)}`; // optionally
+        });
+      });
+    }
+
+    refreshRecs.addEventListener('click', () => {
+      if (auth.currentUser) loadAndShowRecommendations(auth.currentUser.uid);
+    });
+
+    // Enroll flow with clash check and NEP credit preview
+    async function handleEnroll(courseId){
+      try {
+        const user = auth.currentUser;
+        if (!user) return alert('Please sign in');
+        const cSnap = await getDoc(doc(db, 'courses', courseId));
+        if (!cSnap.exists()) return alert('Course not found');
+        const course = cSnap.data();
+
+        const clash = await hasTimetableClash(user.uid, course);
+        if (clash){
+          const proceed = confirm('Warning: This course appears to clash with your timetable. Do you still want to enroll?');
+          if (!proceed) return;
+        }
+
+        // NEP preview - fetch user credits to show small message (optional)
+        const prof = await loadStudentProfile(user.uid);
+        const gains = (course.credits || 0);
+        const newMajor = (prof.credits && prof.credits.major ? prof.credits.major : 0) + ((course.type==='major')?gains:0);
+        const newMinor = (prof.credits && prof.credits.minor ? prof.credits.minor : 0) + ((course.type==='minor')?gains:0);
+
+        // create enrollment doc
+        await addDoc(collection(db, 'enrollments'), {
+          uid: user.uid,
+          courseId,
+          courseTitle: course.title || '',
+          createdAt: serverTimestamp(),
+          status: 'enrolled'
+        });
+
+        alert(`Enrolled successfully.\nEstimated credits after enrollment: Major ${newMajor}, Minor ${newMinor}`);
+        loadCourses(user.uid);
+        loadAndShowRecommendations(user.uid);
+      } catch (e) {
+        console.error('enroll error', e);
+        alert('Could not enroll: ' + (e.message || e));
+      }
+    }
+
+    // small helper to getDoc shorthand import
+    async function getDocRef(ref){
+      return await getDoc(ref);
+    }
+
+    // expose some helpers for debug
+    window._loadRecs = loadAndShowRecommendations;
+
+    // End module
   </script>
 </body>
 </html>
