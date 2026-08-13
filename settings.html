@@ -4,25 +4,222 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Settings — Campus360</title>
+
+  <!-- Immediately apply saved theme to avoid flash -->
+  <script>
+    (function(){
+      try {
+        const saved = localStorage.getItem('campus_theme'); // 'system'|'light'|'dark'
+        const html = document.documentElement;
+        function apply(t){
+          if (t === 'dark') html.classList.add('dark');
+          else if (t === 'light') html.classList.remove('dark');
+          else {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) html.classList.add('dark');
+            else html.classList.remove('dark');
+          }
+        }
+        apply(saved || 'system');
+      } catch(e){ /* ignore */ }
+    })();
+  </script>
+
+  <!-- Tailwind (class-based dark mode) -->
+  <script>tailwind = { config: { darkMode: 'class' } }</script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>#sidebar{height:100vh;overflow:auto}</style>
+
+  <style>
+    :root {
+      --bg: #f3f4f6;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+    }
+    .dark {
+      --bg: #0b1220;
+      --panel: #0f1724;
+      --text: #e6eef8;
+      --muted: #9ca3af;
+    }
+    body { background: var(--bg); color: var(--text); }
+    .panel { background: var(--panel); color: var(--text); }
+    .muted { color: var(--muted); }
+    #sidebar { height:100vh; overflow:auto; }
+    .section { margin-bottom: 16px; }
+
+    /* ===== Remove hover visual changes globally =====
+       Prevent background/color/opacity/box-shadow changes on mouse hover
+       so elements remain visually the same on hover.
+    */
+    a, button, label {
+      transition: none !important;
+    }
+    a:hover, button:hover, label:hover, .revokeBtn:hover, .nav-link:hover {
+      background-color: transparent !important;
+      color: inherit !important;
+      box-shadow: none !important;
+      transform: none !important;
+      opacity: 1 !important;
+      filter: none !important;
+    }
+    /* Keep focus outlines for keyboard users (accessibility) */
+    a:focus, button:focus, label:focus {
+      outline: 2px solid rgba(59,130,246,0.6);
+      outline-offset: 2px;
+    }
+
+    /* Small helpers */
+    .small { font-size: 0.9rem; }
+  </style>
 </head>
-<body class="min-h-screen bg-gray-50">
+<body class="min-h-screen">
   <div class="flex min-h-screen">
-    <aside id="sidebar" class="w-72 bg-white border-r"></aside>
+    <aside id="sidebar" class="w-72 panel border-r dark:border-gray-700 p-6">
+      <h2 class="text-2xl font-bold mb-4">Campus360</h2>
+      <div class="mb-4">
+        <div id="sideEmail" class="text-sm">guest@campus</div>
+        <div class="text-xs muted">Guest</div>
+      </div>
+      <nav class="space-y-1">
+        <a href="dashboard.html" class="block px-3 py-2 rounded nav-link">Dashboard</a>
+        <a href="attendance.html" class="block px-3 py-2 rounded nav-link">Attendance</a>
+        <a href="courses.html" class="block px-3 py-2 rounded nav-link">Courses</a>
+        <a href="library.html" class="block px-3 py-2 rounded nav-link">Library</a>
+        <a href="timetable.html" class="block px-3 py-2 rounded nav-link">Timetable</a>
+        <a href="profile.html" class="block px-3 py-2 rounded nav-link">Profile</a>
+        <a href="settings.html" class="block px-3 py-2 rounded nav-link bg-gray-100 dark:bg-gray-800 font-medium">Settings</a>
+        <a href="about.html" class="block px-3 py-2 rounded nav-link">About</a>
+      </nav>
+    </aside>
+
     <main class="flex-1 p-8">
       <h2 class="text-2xl font-bold mb-4">Settings</h2>
-      <div class="bg-white p-4 rounded shadow">
-        <p class="text-gray-600">Settings placeholder. Add password change, notification prefs etc.</p>
-      </div>
+
+      <!-- Appearance & Theme -->
+      <section class="panel p-4 rounded shadow section">
+        <h3 class="text-lg font-semibold mb-2">Appearance</h3>
+        <p class="muted mb-3 small">Choose the app theme. Selection applies immediately and persists.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <label class="flex items-center gap-2 p-2 rounded">
+            <input type="radio" name="theme" value="system" id="themeSystem" />
+            <span>System</span>
+          </label>
+
+          <label class="flex items-center gap-2 p-2 rounded">
+            <input type="radio" name="theme" value="light" id="themeLight" />
+            <span>Light</span>
+          </label>
+
+          <label class="flex items-center gap-2 p-2 rounded">
+            <input type="radio" name="theme" value="dark" id="themeDark" />
+            <span>Dark</span>
+          </label>
+        </div>
+
+        <div class="mt-4">
+          <button id="applyThemeBtn" class="px-4 py-2 bg-indigo-600 text-white rounded">Apply</button>
+          <button id="clearThemeBtn" class="ml-2 px-4 py-2 bg-gray-200 rounded">Reset</button>
+        </div>
+        <div id="themeMsg" class="text-sm muted mt-3"></div>
+      </section>
+
+      <!-- Account: Change Password -->
+      <section class="panel p-4 rounded shadow section">
+        <h3 class="text-lg font-semibold mb-2">Account</h3>
+        <p class="muted mb-3 small">Change your password. For security, reauthentication is required.</p>
+
+        <form id="pwForm" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div>
+            <label class="text-sm block mb-1">Current password</label>
+            <input id="currentPw" type="password" class="w-full px-3 py-2 border rounded" />
+          </div>
+          <div>
+            <label class="text-sm block mb-1">New password</label>
+            <input id="newPw" type="password" class="w-full px-3 py-2 border rounded" />
+          </div>
+          <div>
+            <button id="changePwBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded">Change password</button>
+          </div>
+        </form>
+        <div id="pwMsg" class="text-sm muted mt-2"></div>
+      </section>
+
+      <!-- Privacy & Policy -->
+      <section class="panel p-4 rounded shadow section">
+        <h3 class="text-lg font-semibold mb-2">Privacy & Policy</h3>
+        <p class="muted mb-3 small">Review our privacy policy and terms. You can view them here.</p>
+
+        <div class="flex gap-2">
+          <button id="viewPrivacy" class="px-3 py-2 bg-gray-100 rounded">View Privacy Policy</button>
+          <button id="viewTerms" class="px-3 py-2 bg-gray-100 rounded">View Terms of Use</button>
+        </div>
+
+        <!-- modal -->
+        <div id="policyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-40">
+          <div class="bg-white dark:bg-gray-800 p-5 rounded max-w-2xl w-full">
+            <div class="flex justify-between items-start">
+              <h4 id="policyTitle" class="text-lg font-semibold"></h4>
+              <button id="closePolicy" class="text-gray-600 dark:text-gray-300">✕</button>
+            </div>
+            <div id="policyBody" class="mt-3 text-sm muted" style="max-height:60vh; overflow:auto;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Security -->
+      <section class="panel p-4 rounded shadow section">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">Security</h3>
+            <p class="muted mt-1 small">Two-factor, remote logout and account deletion.</p>
+          </div>
+        </div>
+
+        <div class="mt-3 space-y-3">
+          <label class="flex items-center gap-2">
+            <input id="toggle2fa" type="checkbox" />
+            <span>Enable Two‑Factor (simulated)</span>
+          </label>
+
+          <div class="flex gap-2">
+            <button id="logoutAllBtn" class="px-3 py-2 bg-red-600 text-white rounded">Log out everywhere</button>
+            <button id="deleteAccBtn" class="px-3 py-2 bg-red-800 text-white rounded">Delete account</button>
+            <div id="securityMsg" class="text-sm muted self-center"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Active Sessions Management -->
+      <section class="panel p-4 rounded shadow section">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="text-lg font-semibold">Active Sessions Management</h3>
+            <p class="muted mt-1 small">See where your account is signed in (mobile, laptop, library PCs). Revoke any device or use "Log out everywhere".</p>
+          </div>
+          <div>
+            <button id="refreshSessions" class="px-3 py-1 bg-gray-100 rounded">Refresh</button>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <div id="sessionsInfo" class="text-sm muted mb-2">Loading active sessions...</div>
+          <div id="sessionsContainer" class="border rounded divide-y"></div>
+          <div class="mt-3"><div id="sessionsMsg" class="text-sm muted"></div></div>
+        </div>
+      </section>
+
     </main>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    const firebaseConfig = {
+  <!-- Firebase compat libs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
+  <script>
+    // ====== Firebase config (replace if needed) ======
+    const firebaseConfig = {
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -30,41 +227,309 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    onAuthStateChanged(auth, u => { if (!u) location.replace('login.html'); else renderSidebar(u); });
+    // ===============================================
 
-    function renderSidebar(user) {
-      const side = document.getElementById('sidebar');
-      side.innerHTML = `
-        <div class="p-6">
-          <h2 class="text-2xl font-bold mb-4">Campus360</h2>
-          <div class="mb-4">
-            <div class="text-sm text-gray-700">${user.email}</div>
-            <div class="text-xs text-gray-500">${user.email}</div>
-          </div>
-          <nav class="space-y-1">
-            ${navLink('Dashboard','dashboard.html')}
-            ${navLink('Attendance','attendance.html')}
-            ${navLink('Courses','courses.html')}
-            ${navLink('Library','library.html')}
-            ${navLink('Timetable','timetable.html')}
-            ${navLink('Notifications','notifications.html')}
-            ${navLink('Profile','profile.html')}
-            ${navLink('Settings','settings.html')}
-            ${navLink('About','about.html')}
-          </nav>
-          <div class="mt-6">
-            <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
-          </div>
-        </div>
-      `;
-      document.getElementById('logoutBtn').addEventListener('click', async () => {
+    // init firebase
+    try { firebase.initializeApp(firebaseConfig); } catch(e) { /* already init */ }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // UI refs
+    const themeSystem = document.getElementById('themeSystem');
+    const themeLight = document.getElementById('themeLight');
+    const themeDark = document.getElementById('themeDark');
+    const applyThemeBtn = document.getElementById('applyThemeBtn');
+    const clearThemeBtn = document.getElementById('clearThemeBtn');
+    const themeMsg = document.getElementById('themeMsg');
+
+    const currentPw = document.getElementById('currentPw');
+    const newPw = document.getElementById('newPw');
+    const changePwBtn = document.getElementById('changePwBtn');
+    const pwMsg = document.getElementById('pwMsg');
+
+    const viewPrivacy = document.getElementById('viewPrivacy');
+    const viewTerms = document.getElementById('viewTerms');
+    const policyModal = document.getElementById('policyModal');
+    const policyTitle = document.getElementById('policyTitle');
+    const policyBody = document.getElementById('policyBody');
+    const closePolicy = document.getElementById('closePolicy');
+
+    const toggle2fa = document.getElementById('toggle2fa');
+    const logoutAllBtn = document.getElementById('logoutAllBtn');
+    const deleteAccBtn = document.getElementById('deleteAccBtn');
+    const securityMsg = document.getElementById('securityMsg');
+
+    const sessionsInfo = document.getElementById('sessionsInfo');
+    const sessionsContainer = document.getElementById('sessionsContainer');
+    const refreshSessions = document.getElementById('refreshSessions');
+    const sessionsMsg = document.getElementById('sessionsMsg');
+    const sideEmail = document.getElementById('sideEmail');
+
+    // -------- Theme handling --------
+    function applyTheme(theme, persist=true) {
+      const html = document.documentElement;
+      if (theme === 'dark') html.classList.add('dark');
+      else if (theme === 'light') html.classList.remove('dark');
+      else {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) html.classList.add('dark');
+        else html.classList.remove('dark');
+      }
+      if (persist) {
+        localStorage.setItem('campus_theme', theme);
+        themeMsg.textContent = 'Saved preference: ' + theme;
+      } else {
+        themeMsg.textContent = 'Applied: ' + theme;
+      }
+    }
+
+    (function initRadios(){
+      const saved = localStorage.getItem('campus_theme') || 'system';
+      if (saved === 'light') themeLight.checked = true;
+      else if (saved === 'dark') themeDark.checked = true;
+      else themeSystem.checked = true;
+    })();
+
+    document.querySelectorAll('input[name="theme"]').forEach(r => r.addEventListener('change', (e) => {
+      applyTheme(e.target.value, false);
+    }));
+    applyThemeBtn.addEventListener('click', () => {
+      const theme = themeLight.checked ? 'light' : (themeDark.checked ? 'dark' : 'system');
+      applyTheme(theme, true);
+      if (auth.currentUser) {
+        const uid = auth.currentUser.uid;
+        // merge existing settings (best-effort)
+        db.collection('users').doc(uid).get().then(snap => {
+          const existing = (snap.exists && snap.data() && snap.data().settings) ? snap.data().settings : {};
+          db.collection('users').doc(uid).set({ settings: { ...existing, theme } }, { merge: true }).catch(()=>{/*ignore*/});
+        }).catch(()=>{/*ignore*/});
+      }
+    });
+    clearThemeBtn.addEventListener('click', () => {
+      localStorage.removeItem('campus_theme');
+      applyTheme('system', false);
+      themeSystem.checked = true;
+      themeMsg.textContent = 'Reset to system preference';
+    });
+
+    // -------- Change password --------
+    changePwBtn.addEventListener('click', async (ev) => {
+      ev.preventDefault();
+      pwMsg.style.color = '#374151'; pwMsg.textContent = 'Processing...';
+      const user = auth.currentUser;
+      if (!user) { pwMsg.style.color = 'crimson'; pwMsg.textContent = 'Please sign in.'; return; }
+      const curr = currentPw.value || '';
+      const next = newPw.value || '';
+      if (!curr || !next) { pwMsg.style.color = 'crimson'; pwMsg.textContent = 'Provide both current and new password.'; return; }
+      if (next.length < 6) { pwMsg.style.color = 'crimson'; pwMsg.textContent = 'New password must be at least 6 characters.'; return; }
+      try {
+        const credential = firebase.auth.EmailAuthProvider.credential(user.email, curr);
+        await user.reauthenticateWithCredential(credential);
+        await user.updatePassword(next);
+        pwMsg.style.color = 'green'; pwMsg.textContent = 'Password changed successfully.';
+        currentPw.value = newPw.value = '';
+      } catch (e) {
+        console.error('change password', e);
+        pwMsg.style.color = 'crimson';
+        pwMsg.textContent = e.message || 'Could not change password.';
+      }
+    });
+
+    // -------- Privacy & Policy modal --------
+    const samplePrivacy = `
+      <h4 class="font-medium">Privacy Policy (Sample)</h4>
+      <p class="muted">We collect minimal information to provide the service. We do not share personal data with third parties without consent. This is demo text — replace with your legal policy.</p>
+    `;
+    const sampleTerms = `
+      <h4 class="font-medium">Terms of Use (Sample)</h4>
+      <p class="muted">By using Campus360 you agree to the terms. This is demo text — replace with your legal terms.</p>
+    `;
+    viewPrivacy.addEventListener('click', () => {
+      policyTitle.textContent = 'Privacy Policy';
+      policyBody.innerHTML = samplePrivacy;
+      policyModal.classList.remove('hidden'); policyModal.classList.add('flex');
+    });
+    viewTerms.addEventListener('click', () => {
+      policyTitle.textContent = 'Terms of Use';
+      policyBody.innerHTML = sampleTerms;
+      policyModal.classList.remove('hidden'); policyModal.classList.add('flex');
+    });
+    closePolicy.addEventListener('click', () => { policyModal.classList.add('hidden'); policyModal.classList.remove('flex'); });
+    policyModal.addEventListener('click', (e) => { if (e.target === policyModal) { policyModal.classList.add('hidden'); policyModal.classList.remove('flex'); } });
+
+    // -------- Security: 2FA toggle (simulated) --------
+    toggle2fa.addEventListener('change', async () => {
+      const user = auth.currentUser;
+      if (!user) { securityMsg.style.color = 'crimson'; securityMsg.textContent = 'Sign in required.'; return; }
+      const enabled = toggle2fa.checked;
+      try {
+        const snap = await db.collection('users').doc(user.uid).get();
+        const existing = snap.exists && snap.data() && snap.data().settings ? snap.data().settings : {};
+        await db.collection('users').doc(user.uid).set({ settings: { ...existing, twoFactor: enabled } }, { merge: true });
+        securityMsg.style.color = 'green';
+        securityMsg.textContent = enabled ? '2FA enabled (simulated).' : '2FA disabled.';
+      } catch (e) {
+        console.error('toggle2fa', e);
+        securityMsg.style.color = 'crimson'; securityMsg.textContent = 'Could not update 2FA.';
+      }
+    });
+
+    // -------- Logout everywhere & Delete account --------
+    logoutAllBtn.addEventListener('click', async () => {
+      if (!confirm('Log out from all devices (this will sign you out here too)?')) return;
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const logoutAt = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection('users').doc(user.uid).set({ logoutAllAt: logoutAt }, { merge: true });
+        const snaps = await db.collection('sessions').where('uid','==', user.uid).get().catch(()=>({ empty: true }));
+        if (!snaps.empty) {
+          const batch = db.batch();
+          snaps.forEach(s => batch.update(s.ref, { revoked: true, revokedAt: firebase.firestore.FieldValue.serverTimestamp() }));
+          await batch.commit();
+        }
+      } catch (e) {
+        console.error('logoutAll', e);
+      } finally {
         await auth.signOut();
         location.replace('index.html');
-      });
+      }
+    });
+
+    deleteAccBtn.addEventListener('click', async () => {
+      if (!confirm('This will permanently delete your account and (demo) user document. Continue?')) return;
+      const user = auth.currentUser;
+      if (!user) return;
+      const pwd = prompt('Please enter your current password to confirm deletion:');
+      if (!pwd) { securityMsg.style.color = 'crimson'; securityMsg.textContent = 'Password required to delete account.'; return; }
+      try {
+        const cred = firebase.auth.EmailAuthProvider.credential(user.email, pwd);
+        await user.reauthenticateWithCredential(cred);
+        try { await db.collection('users').doc(user.uid).delete(); } catch(e){ console.warn('delete user doc failed', e); }
+        await user.delete();
+        securityMsg.style.color = 'green'; securityMsg.textContent = 'Account deleted.';
+        location.replace('index.html');
+      } catch (e) {
+        console.error('delete account', e);
+        securityMsg.style.color = 'crimson'; securityMsg.textContent = e.message || 'Could not delete account.';
+      }
+    });
+
+    // -------- Active sessions management --------
+    const SESSION_KEY = 'campus_session_id';
+    function getOrCreateSessionId() {
+      let sid = localStorage.getItem(SESSION_KEY);
+      if (!sid) {
+        if (crypto && crypto.randomUUID) sid = crypto.randomUUID();
+        else sid = 's_' + Math.random().toString(36).slice(2,12);
+        localStorage.setItem(SESSION_KEY, sid);
+      }
+      return sid;
     }
-    function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
+    const localSessionId = getOrCreateSessionId();
+
+    async function registerThisSession(user) {
+      try {
+        const ref = db.collection('sessions').doc(localSessionId);
+        await ref.set({
+          uid: user.uid,
+          userAgent: navigator.userAgent || '',
+          platform: navigator.platform || '',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+          active: true,
+          revoked: false
+        }, { merge: true });
+      } catch (e) { console.warn('register session failed', e); }
+    }
+
+    async function loadSessions(uid) {
+      sessionsContainer.innerHTML = '';
+      sessionsInfo.textContent = 'Loading active sessions...';
+      try {
+        const snaps = await db.collection('sessions').where('uid','==', uid).orderBy('lastSeen','desc').get();
+        if (snaps.empty) {
+          sessionsContainer.innerHTML = '<div class="p-3 text-gray-500 small">No active sessions found.</div>';
+          sessionsInfo.textContent = 'No active sessions found.';
+          return;
+        }
+        const rows = [];
+        snaps.forEach(docSnap => {
+          const d = docSnap.data();
+          const id = docSnap.id;
+          const createdAt = d.createdAt && d.createdAt.toDate ? d.createdAt.toDate().toLocaleString() : '-';
+          const lastSeen = d.lastSeen && d.lastSeen.toDate ? d.lastSeen.toDate().toLocaleString() : '-';
+          const isThis = id === localSessionId;
+          rows.push(`
+            <div class="p-3 flex justify-between items-start">
+              <div>
+                <div class="font-medium">${escapeHtml(d.platform || (d.userAgent || '').slice(0,30) || 'Device')}</div>
+                <div class="text-sm muted">Created: ${createdAt} • Last seen: ${lastSeen}</div>
+                ${d.revoked ? '<div class="text-sm text-red-600">Revoked</div>' : ''}
+              </div>
+              <div class="text-right">
+                ${isThis ? '<div class="text-sm text-green-600">This device</div>' : `<button data-id="${escapeHtml(id)}" class="revokeBtn px-3 py-1 bg-red-600 text-white rounded text-sm">Revoke</button>`}
+              </div>
+            </div>
+          `);
+        });
+        sessionsContainer.innerHTML = rows.join('');
+        sessionsInfo.textContent = 'Active sessions for your account:';
+        document.querySelectorAll('.revokeBtn').forEach(btn => btn.addEventListener('click', async (e) => {
+          const sid = e.currentTarget.getAttribute('data-id');
+          await revokeSession(sid);
+        }));
+      } catch (e) {
+        console.error('loadSessions', e);
+        sessionsInfo.textContent = 'Could not load sessions.';
+        sessionsContainer.innerHTML = `<div class="p-3 text-red-600 small">Error loading sessions.</div>`;
+      }
+    }
+
+    async function revokeSession(sessionDocId) {
+      if (!confirm('Revoke this session? This will sign out that device.')) return;
+      try {
+        await db.collection('sessions').doc(sessionDocId).update({ revoked: true, revokedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        sessionsMsg.textContent = 'Session revoked.';
+        setTimeout(() => sessionsMsg.textContent = '', 2500);
+        if (auth.currentUser) loadSessions(auth.currentUser.uid);
+      } catch (e) {
+        console.error('revokeSession', e);
+        sessionsMsg.textContent = 'Could not revoke session.';
+      }
+    }
+
+    // -------- Auth state & load user settings --------
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        sideEmail.textContent = 'guest@campus';
+        sessionsInfo.textContent = 'Sign in to manage active sessions.';
+        sessionsContainer.innerHTML = '';
+        return;
+      }
+      sideEmail.textContent = user.email || user.uid;
+      await registerThisSession(user);
+      await loadSessions(user.uid);
+      setInterval(async () => {
+        try { await db.collection('sessions').doc(localSessionId).update({ lastSeen: firebase.firestore.FieldValue.serverTimestamp(), active: true }); } catch(e) {}
+      }, 30000);
+
+      // load saved settings if any
+      try {
+        const snap = await db.collection('users').doc(user.uid).get();
+        if (snap.exists) {
+          const s = snap.data().settings || {};
+          if (s.theme) {
+            if (s.theme === 'light') themeLight.checked = true;
+            else if (s.theme === 'dark') themeDark.checked = true;
+            else themeSystem.checked = true;
+            applyTheme(s.theme, false);
+          }
+          toggle2fa.checked = !!s.twoFactor;
+        }
+      } catch (e) { console.warn('load settings', e); }
+    });
+
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
   </script>
 </body>
 </html>
