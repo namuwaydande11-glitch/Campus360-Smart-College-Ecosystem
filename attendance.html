@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Attendance — Campus360</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>#sidebar{height:100vh;overflow:auto} video{max-width:100%} </style>
+  <style>#sidebar{height:100vh;overflow:auto}</style>
 </head>
 <body class="min-h-screen bg-gray-50">
   <div class="flex min-h-screen">
     <aside id="sidebar" class="w-72 bg-white border-r"></aside>
     <main class="flex-1 p-8">
       <h2 class="text-2xl font-bold mb-4">Attendance</h2>
-
       <div class="bg-white p-4 rounded shadow">
         <h3 class="font-semibold mb-2">Mark Attendance</h3>
         <form id="attForm" class="space-y-3">
@@ -21,21 +20,9 @@
             <label class="flex items-center"><input type="radio" name="present" value="true" checked /> <span class="ml-2">Present</span></label>
             <label class="flex items-center"><input type="radio" name="present" value="false" /> <span class="ml-2">Absent</span></label>
           </div>
-          <div class="flex gap-2">
-            <button id="manualMarkBtn" class="bg-indigo-600 text-white px-4 py-2 rounded" type="submit">Mark</button>
-            <button id="startFaceBtn" type="button" class="bg-green-600 text-white px-4 py-2 rounded">Start Face Attendance</button>
-            <button id="stopFaceBtn" type="button" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hidden">Stop</button>
-          </div>
+          <button class="bg-indigo-600 text-white px-4 py-2 rounded" type="submit">Mark</button>
         </form>
         <div id="attMsg" class="text-sm mt-3"></div>
-      </div>
-
-      <div class="mt-6 bg-white p-4 rounded shadow">
-        <h3 class="font-semibold mb-2">Face Camera Preview</h3>
-        <div id="cameraArea" class="space-y-2">
-          <video id="video" autoplay muted playsinline class="w-80 rounded border"></video>
-          <div id="cameraMsg" class="text-sm text-gray-600">Camera is off.</div>
-        </div>
       </div>
 
       <div class="mt-6 bg-white p-4 rounded shadow">
@@ -46,27 +33,12 @@
   </div>
 
   <script type="module">
-    // Firebase imports
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-    import {
-      getFirestore,
-      addDoc,
-      collection,
-      query,
-      where,
-      orderBy,
-      limit,
-      getDocs,
-      serverTimestamp
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+    import { getFirestore, addDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
 
-    // TensorFlow + BlazeFace
-    import * as tf from 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js';
-    import * as blazeface from 'https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js';
-
-    // --- Your Firebase config (keep unchanged if already correct) ---
     const firebaseConfig = {
+
       apiKey: "AIzaSyCqK5TUrvEHB8tBzegXf3g517EUouHvGtg",
       authDomain: "final-project-646be.firebaseapp.com",
       projectId: "final-project-646be",
@@ -74,30 +46,15 @@
       messagingSenderId: "826790861451",
       appId: "1:826790861451:web:43fd311fc290419ab2928e"
     };
-    // --------------------------------------------------------
-
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // UI elements
-    const video = document.getElementById('video');
-    const cameraMsg = document.getElementById('cameraMsg');
-    const startFaceBtn = document.getElementById('startFaceBtn');
-    const stopFaceBtn = document.getElementById('stopFaceBtn');
-    const attForm = document.getElementById('attForm');
-    const attMsg = document.getElementById('attMsg');
-    const recentList = document.getElementById('recentList');
-    const courseInput = document.getElementById('courseId');
-
-    // Sidebar & auth state
+    // requireAuth & sidebar same approach as dashboard
     onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        location.replace('login.html');
-        return;
-      }
+      if (!user) { location.replace('login.html'); return; }
       renderSidebar(user);
-      await loadRecent(user.uid);
+      loadRecent(user.uid);
     });
 
     function renderSidebar(user) {
@@ -106,191 +63,73 @@
         <div class="p-6">
           <h2 class="text-2xl font-bold mb-4">Campus360</h2>
           <div class="mb-4">
-            <div id="user-name" class="text-sm text-gray-700">${escapeHtml(user.email)}</div>
-            <div id="user-email" class="text-xs text-gray-500">${escapeHtml(user.email)}</div>
+            <div id="user-name" class="text-sm text-gray-700">${user.email}</div>
+            <div id="user-email" class="text-xs text-gray-500">${user.email}</div>
           </div>
           <nav class="space-y-1">
             ${navLink('Dashboard','dashboard.html')}
             ${navLink('Attendance','attendance.html')}
             ${navLink('Courses','courses.html')}
+            ${navLink('Library','library.html')}
+            ${navLink('Timetable','timetable.html')}
+            ${navLink('Notifications','notifications.html')}
             ${navLink('Profile','profile.html')}
+            ${navLink('Settings','settings.html')}
             ${navLink('About','about.html')}
+            ${navLink('Docs','docs.html')}
+            ${navLink('Help','help.html')}
           </nav>
           <div class="mt-6">
             <button id="logoutBtn" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded">Logout</button>
           </div>
         </div>
       `;
-      document.getElementById('logoutBtn').addEventListener('click', async () => { await signOut(auth); location.replace('index.html'); });
+      document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await auth.signOut();
+        location.replace('index.html');
+      });
     }
     function navLink(t,h){ return `<a href="${h}" class="block px-3 py-2 rounded text-gray-700 hover:bg-gray-100">${t}</a>`; }
-    function escapeHtml(s){ return String(s||'').replace(/[&<>"'`=\/]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'})[c]); }
 
-    // Attendance: manual submit (keeps original behavior)
+    // attendance submission
+    const attForm = document.getElementById('attForm');
+    const attMsg = document.getElementById('attMsg');
     attForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       attMsg.textContent = '';
-      const courseId = courseInput.value.trim();
+      const courseId = document.getElementById('courseId').value.trim();
       const present = document.querySelector('input[name="present"]:checked').value === 'true';
       try {
         const user = auth.currentUser;
         if (!user) throw new Error('Not signed in');
         await addDoc(collection(db, 'attendance'), {
-          uid: user.uid,
-          courseId,
-          present,
-          date: serverTimestamp(),
-          dateClient: new Date().toISOString(),
-          method: 'manual'
+          uid: user.uid, courseId, present, date: new Date().toISOString()
         });
         attMsg.textContent = 'Attendance recorded.';
         attMsg.className = 'text-green-600';
         attForm.reset();
-        await loadRecent(user.uid);
+        loadRecent(user.uid);
       } catch (err) {
-        console.error(err);
-        attMsg.textContent = err.message || 'Failed to save attendance';
+        attMsg.textContent = err.message || 'Failed';
         attMsg.className = 'text-red-600';
       }
     });
 
-    // Load recent attendance (ordered by client date)
     async function loadRecent(uid) {
-      recentList.textContent = 'Loading...';
       try {
-        const q = query(collection(db, 'attendance'), where('uid','==', uid), orderBy('dateClient','desc'), limit(8));
+        const q = query(collection(db, 'attendance'), where('uid','==',uid), orderBy('date','desc'), limit(6));
         const snaps = await getDocs(q);
+        const el = document.getElementById('recentList');
+        if (!el) return;
         const arr = [];
         snaps.forEach(s => arr.push(s.data()));
-        if (arr.length === 0) recentList.innerHTML = '<div class="text-gray-500">No records yet.</div>';
-        else recentList.innerHTML = arr.map(a => {
-          const dt = a.dateClient ? new Date(a.dateClient).toLocaleString() : '—';
-          return `<div class="py-1 border-b"><strong>${escapeHtml(a.courseId)}</strong> — ${a.present ? 'Present' : 'Absent'} <span class="text-xs text-gray-500">(${escapeHtml(dt)})</span> <span class="text-xs text-gray-400">[${escapeHtml(a.method||'')}]</span></div>`;
-        }).join('');
+        if (arr.length === 0) el.textContent = 'No records yet.';
+        else el.innerHTML = arr.map(a => `<div class="py-1 border-b"><strong>${a.courseId}</strong> — ${a.present ? 'Present' : 'Absent'} <span class="text-xs text-gray-500">(${new Date(a.date).toLocaleString()})</span></div>`).join('');
       } catch (err) {
-        console.error(err);
-        recentList.innerHTML = '<div class="text-red-600">Could not load records.</div>';
+        const el = document.getElementById('recentList');
+        if (el) el.textContent = 'Could not load records.';
       }
     }
-
-    // --- Face detection logic (BlazeFace) ---
-    let model = null;
-    let stream = null;
-    let detectionId = null;
-    let alreadyMarked = false;
-
-    async function startCamera() {
-      if (stream) return;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        video.srcObject = stream;
-        cameraMsg.textContent = 'Camera on. Loading model...';
-      } catch (err) {
-        cameraMsg.textContent = 'Camera access denied or not available.';
-        console.error('Camera error', err);
-        throw err;
-      }
-    }
-
-    function stopCamera() {
-      if (!stream) return;
-      stream.getTracks().forEach(t => t.stop());
-      stream = null;
-      video.srcObject = null;
-      cameraMsg.textContent = 'Camera is off.';
-    }
-
-    async function loadModelOnce() {
-      if (model) return model;
-      cameraMsg.textContent = 'Loading face detection model...';
-      model = await blazeface.load();
-      cameraMsg.textContent = 'Model loaded. Ready to detect faces.';
-      return model;
-    }
-
-    async function detectionLoop(courseIdToUse) {
-      if (!model) await loadModelOnce();
-      alreadyMarked = false;
-      cameraMsg.textContent = 'Detecting faces...';
-      async function step() {
-        try {
-          const predictions = await model.estimateFaces(video, false);
-          if (predictions && predictions.length > 0) {
-            cameraMsg.textContent = `Face detected (${predictions.length}).`;
-            if (!alreadyMarked) {
-              alreadyMarked = true;
-              try {
-                await markAttendanceAuto(courseIdToUse, true);
-                attMsg.textContent = 'Face detected — attendance recorded automatically.';
-                attMsg.className = 'text-green-600';
-                const user = auth.currentUser;
-                if (user) await loadRecent(user.uid);
-              } catch (err) {
-                console.error(err);
-                attMsg.textContent = 'Failed to mark attendance: ' + (err.message||'');
-                attMsg.className = 'text-red-600';
-              } finally {
-                // stop after marking once
-                stopFaceAttendance();
-                return;
-              }
-            }
-          } else {
-            cameraMsg.textContent = 'No face detected. Keep camera on.';
-          }
-        } catch (err) {
-          console.error('Detection error', err);
-        }
-        detectionId = requestAnimationFrame(step);
-      }
-      step();
-    }
-
-    async function markAttendanceAuto(courseId, present = true) {
-      const user = auth.currentUser;
-      if (!user) throw new Error('Not signed in');
-      const payload = {
-        uid: user.uid,
-        courseId: courseId || 'face-auto',
-        present,
-        date: serverTimestamp(),
-        dateClient: new Date().toISOString(),
-        method: 'face-detection'
-      };
-      await addDoc(collection(db, 'attendance'), payload);
-    }
-
-    // Control functions
-    async function startFaceAttendance() {
-      attMsg.textContent = '';
-      const courseIdToUse = courseInput.value.trim() || 'face-auto';
-      try {
-        await startCamera();
-        await loadModelOnce();
-        startFaceBtn.classList.add('hidden');
-        stopFaceBtn.classList.remove('hidden');
-        detectionLoop(courseIdToUse);
-      } catch (err) {
-        attMsg.textContent = 'Could not start face attendance: ' + (err.message||'');
-        attMsg.className = 'text-red-600';
-      }
-    }
-
-    function stopFaceAttendance() {
-      if (detectionId) cancelAnimationFrame(detectionId);
-      detectionId = null;
-      alreadyMarked = false;
-      stopCamera();
-      startFaceBtn.classList.remove('hidden');
-      stopFaceBtn.classList.add('hidden');
-    }
-
-    startFaceBtn.addEventListener('click', startFaceAttendance);
-    stopFaceBtn.addEventListener('click', stopFaceAttendance);
-
-    // cleanup on page unload
-    window.addEventListener('beforeunload', () => { stopFaceAttendance(); });
-
   </script>
 </body>
 </html>
